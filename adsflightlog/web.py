@@ -49,14 +49,26 @@ class App:
             editions.ensure_schema(c)
 
     def start_sync(self) -> None:
-        """Hourly edition check in the background (only does work once locked in)."""
+        """Edition check in the background every ``check_days`` (default weekly).
+
+        The time of the last check is stored, so restarts don't make it run more often.
+        Only does work once the collection is locked in.
+        """
+        interval = self.cfg.editions_check_days * 86400
+
         def loop():
             while True:
                 try:
-                    self.sync_editions()
+                    with self.conn() as c:
+                        row = c.execute("SELECT value FROM meta WHERE key='editions_checked'").fetchone()
+                    if not row or time.time() - float(row[0]) >= interval:
+                        self.sync_editions()
+                        with self.conn() as c:
+                            c.execute("INSERT OR REPLACE INTO meta VALUES ('editions_checked', ?)",
+                                      (str(time.time()),))
                 except Exception as e:  # noqa: BLE001 — keep the server alive
                     print(f"web: edition sync failed: {e}", flush=True)
-                time.sleep(3600)
+                time.sleep(3600)   # just checks whether a run is due
         threading.Thread(target=loop, daemon=True, name="edition-sync").start()
 
     def sync_editions(self) -> list[str]:

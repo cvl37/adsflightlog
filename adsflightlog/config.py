@@ -57,6 +57,7 @@ class Config:
     rarity_weights: dict | None = None
     rarity_learn_days: float = 28
     editions_stable_days: float = 7
+    editions_check_days: float = 7
 
     @property
     def tar1090_html(self) -> Path:
@@ -104,6 +105,7 @@ def load(path: str | Path | None = None) -> Config:
         rarity_weights={k: float(v) for k, v in raw.get("rarity", {}).get("weights", {}).items()} or None,
         rarity_learn_days=float(raw.get("rarity", {}).get("learn_days", 28)),
         editions_stable_days=float(raw.get("editions", {}).get("stable_days", 7)),
+        editions_check_days=float(raw.get("editions", {}).get("check_days", 7)),
         web_host=str(web.get("host", "0.0.0.0")),
         web_port=int(web.get("port", 8642)),
     )

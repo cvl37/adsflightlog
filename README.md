@@ -108,10 +108,10 @@ python3 -m adsflightlog.editions lock     # freeze every card as edition 1
 python3 -m adsflightlog.editions status
 ```
 
-After lock-in, the web server checks every hour and issues a **new edition** of a card when:
-- a special livery is added, removed or changed (immediately);
-- the aircraft is re-registered (immediately);
-- its rarity tier changes and stays changed for `stable_days` (default 7, under `[editions]` in `config.toml`).
+After lock-in, the web server checks **once a week** (`check_days` under `[editions]`) and issues a **new edition** of a card when:
+- a special livery is added, removed or changed. A change you make on a card applies right away; anything else applies at the next weekly check;
+- the aircraft is re-registered (at the next check);
+- its rarity tier changes and is still changed at the next check, at least `stable_days` (default 7) later. In practice that's two weekly checks in a row.
 
 What happens to the editions:
 - **The previous edition is retired.** It keeps its frozen rarity, reasons and special-livery flags, gets a RETIRED stamp, and stays in the collection with its points.

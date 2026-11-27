@@ -4,7 +4,7 @@ Before lock-in, every card's rarity is provisional and recalculated live.
 ``lock`` freezes the current state of every card as **edition 1**: rarity,
 score, reasons, special-livery status, registration, type and operator.
 
-After lock-in, ``sync`` (run hourly by the web server) compares each card's
+After lock-in, ``sync`` (run weekly by the web server, ``check_days``) compares each card's
 live assessment with its active edition and issues a new edition when:
 
 * a special livery was added, removed or changed  -> immediately
