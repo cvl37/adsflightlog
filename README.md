@@ -78,7 +78,7 @@ Mission callsigns (`MISSION_CALLSIGNS`) are never used as an operator, for any a
 - **What it's for:** "local regularity" in the rarity score uses it together with what your receiver hears. Rarity reflects real airport traffic from day one, instead of after weeks of listening.
 - **Setup:** it needs a free OpenSky account with an **API client**; put its credentials under `[opensky]` in `config.toml`.
 - **Cost:** each one-day query costs 30 of the 4,000 daily API credits, so the initial 60 days fit in one run.
-- **Resuming:** the import resumes where it left off. Re-running it (e.g. daily) adds the days since the last run.
+- **Resuming:** the import resumes where it left off. `--refresh 14` re-imports the last 14 days. A twice-monthly cron run of that keeps it reasonably current without spending many credits.
 - **Storage:** data goes into `airport_days` (one row per aircraft per day), kept for 120 days.
 
 ## Binder pages: fleets, manufacturers and types

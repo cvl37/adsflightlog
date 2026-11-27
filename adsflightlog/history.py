@@ -17,9 +17,9 @@ config.toml:
 
 Each one-day query costs 30 API credits (4,000 per day), so 60 days of
 arrivals and departures fit in one run. The import resumes where it left off.
-Run it daily (cron) to keep the last days current:
 
-    python3 -m adsflightlog.history [config.toml]
+    python3 -m adsflightlog.history [config.toml]              # fill the window
+    python3 -m adsflightlog.history [config.toml] --refresh 14 # re-import last 14 days
 """
 
 from __future__ import annotations
@@ -101,7 +101,10 @@ def _local_midnight(day: str) -> int:
     return int(time.mktime(time.strptime(day, "%Y-%m-%d")))
 
 
-def import_history(conn: sqlite3.Connection, cfg: cfgmod.Config, osky: dict, log=print) -> int:
+def import_history(conn: sqlite3.Connection, cfg: cfgmod.Config, osky: dict, log=print,
+                   refresh_days: int | None = None) -> int:
+    """Import missing days of the history window, or, with ``refresh_days``,
+    re-import just the last N days (whether imported before or not)."""
     conn.executescript(SCHEMA)
     airport = osky.get("airport", "EHAM").upper()
     n_days = int(osky.get("history_days", 60))
@@ -112,8 +115,9 @@ def import_history(conn: sqlite3.Connection, cfg: cfgmod.Config, osky: dict, log
     done = {d for (d,) in conn.execute("SELECT day FROM airport_days_done WHERE airport=?", (airport,))}
     today = time.strftime("%Y-%m-%d")
     # Newest first, so the most relevant days land even if credits run out.
-    days = [time.strftime("%Y-%m-%d", time.localtime(time.time() - i * 86400)) for i in range(1, n_days + 1)]
-    todo = [d for d in days if d not in done and d != today]
+    span = refresh_days if refresh_days else n_days
+    days = [time.strftime("%Y-%m-%d", time.localtime(time.time() - i * 86400)) for i in range(1, span + 1)]
+    todo = [d for d in days if d != today and (refresh_days or d not in done)]
     imported = 0
     for day in todo:
         if api.remaining is not None and api.remaining < MIN_CREDITS:
@@ -162,7 +166,8 @@ def import_history(conn: sqlite3.Connection, cfg: cfgmod.Config, osky: dict, log
 
 
 def main() -> None:
-    cfg_path = Path(sys.argv[1]) if len(sys.argv) > 1 else cfgmod.ROOT / "config.toml"
+    args = [a for a in sys.argv[1:] if not a.startswith("--") and not a.isdigit()]
+    cfg_path = Path(args[0]) if args else cfgmod.ROOT / "config.toml"
     cfg = cfgmod.load(cfg_path)
     osky = tomllib.loads(cfg_path.read_text()).get("opensky", {})
     if not osky.get("client_id") or not osky.get("client_secret"):
@@ -170,7 +175,11 @@ def main() -> None:
     conn = connect(cfg.database)
     from . import fleet
     conn.executescript(fleet.SCHEMA)
-    n = import_history(conn, cfg, osky, log=lambda m: print(m, flush=True))
+    refresh = None
+    if "--refresh" in sys.argv:
+        i = sys.argv.index("--refresh")
+        refresh = int(sys.argv[i + 1]) if i + 1 < len(sys.argv) and sys.argv[i + 1].isdigit() else 14
+    n = import_history(conn, cfg, osky, log=lambda m: print(m, flush=True), refresh_days=refresh)
     print(f"history: imported {n} day(s)", flush=True)
 
 
