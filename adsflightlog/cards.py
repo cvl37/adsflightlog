@@ -42,9 +42,9 @@ def build_cards(rows: list[dict], model: RarityModel | None = None, now: float |
     for r in rows:
         t = r.get("type") or "?"
         if model:
-            tier, reasons = model.assess(r)
+            tier, reasons, score = model.assess(r)
         else:
-            tier, reasons = "common", []
+            tier, reasons, score = "common", [], 0.0
         special = model.specials.get(r["hex"]) if model else None
         badges = []
         if special:
@@ -54,7 +54,7 @@ def build_cards(rows: list[dict], model: RarityModel | None = None, now: float |
         if special and special.get("one_off"):
             badges.append("one of a kind")
         if first_of_type.get(t) == r["card_no"] and t != "?":
-            badges.append("1st edition")
+            badges.append("first of type")
         if now - r["first_seen"] < 86400:
             badges.append("new")
         if (r.get("closest_km") or 99) < 2 and (r.get("closest_alt_ft") or 99999) < 3000:
@@ -67,6 +67,7 @@ def build_cards(rows: list[dict], model: RarityModel | None = None, now: float |
             badges.append("regular")
 
         r["rarity"] = tier
+        r["rarity_score"] = score
         r["rarity_reasons"] = reasons
         r["special"] = special
         r["points"] = POINTS[tier] + (100 if r.get("emergency") else 0)

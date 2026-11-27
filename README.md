@@ -98,6 +98,27 @@ Where the empty sleeves come from:
 
 Airfleets.net and Planespotters.net were considered, but they don't permit automated access, so they aren't used.
 
+## Editions
+
+Rarities are **provisional** until you lock them in. Until then they keep recalculating as traffic patterns are learned, and the binder shows a note saying so.
+
+```
+python3 -m adsflightlog.editions review   # rarity per card, with reasons
+python3 -m adsflightlog.editions lock     # freeze every card as edition 1
+python3 -m adsflightlog.editions status
+```
+
+After lock-in, the web server checks every hour and issues a **new edition** of a card when:
+- a special livery is added, removed or changed (immediately);
+- the aircraft is re-registered (immediately);
+- its rarity tier changes and stays changed for `stable_days` (default 7, under `[editions]` in `config.toml`).
+
+What happens to the editions:
+- **The previous edition is retired.** It keeps its frozen rarity, reasons and special-livery flags, gets a RETIRED stamp, and stays in the collection with its points.
+- **The new edition gets its own card number.** Both show the aircraft's live sighting statistics.
+- **New catches after lock-in** get edition 1 immediately.
+- **Built-in liveries you remove stay removed.** A special livery from `specials.json` that you remove (for example after a respray) is not re-added.
+
 ## Flight paths
 
 Each sighting stores the aircraft's flight path as raw positions, not images. The path covers the time before it entered your catch zones, every position while inside them, and the time after it left. You set how much in `config.toml`:
@@ -138,7 +159,7 @@ after_min = 30
   - seeded from `adsflightlog/specials.json` (e.g. PH-BVA *Orange Pride*);
   - add your own on the back of a card under "Mark as special livery". They're stored locally, in the `specials` table.
 - **Badges**:
-  - `1st edition`: your first airframe of that type.
+  - `first of type`: your first airframe of that type.
   - `new`: caught in the last 24 h.
   - `low pass`: under 2 km away and below 3,000 ft.
   - `squawk …`: an emergency was seen.

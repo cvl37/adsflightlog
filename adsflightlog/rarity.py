@@ -90,6 +90,11 @@ SUNSET = {
 }
 
 SPECIALS_SCHEMA = """
+-- Seed specials you removed (e.g. aircraft resprayed): never re-added from specials.json.
+CREATE TABLE IF NOT EXISTS specials_suppressed (
+    hex TEXT PRIMARY KEY
+) WITHOUT ROWID;
+
 CREATE TABLE IF NOT EXISTS specials (
     hex     TEXT PRIMARY KEY,
     reg     TEXT,
@@ -112,7 +117,8 @@ def load_seed_specials(conn: sqlite3.Connection) -> int:
     with conn:
         for s in json.loads(SEED_FILE.read_text()):
             row = conn.execute("SELECT hex FROM ref_aircraft WHERE upper(reg)=upper(?)", (s["reg"],)).fetchone()
-            if not row:
+            if not row or conn.execute(
+                    "SELECT 1 FROM specials_suppressed WHERE hex=?", (row[0],)).fetchone():
                 continue
             cur = conn.execute(
                 """INSERT INTO specials (hex, reg, title, note, one_off, source, added)
@@ -225,7 +231,8 @@ class RarityModel:
                 (since_day, *self.specials)))
 
     # ------------------------------------------------------------------
-    def assess(self, c: dict) -> tuple[str, list[str]]:
+    def assess(self, c: dict) -> tuple[str, list[str], float]:
+        """Returns (tier, reasons, weighted score)."""
         typ, op, desc = c.get("type"), c.get("operator"), c.get("desc")
         reasons: list[str] = []
         W = self.weights
@@ -300,4 +307,4 @@ class RarityModel:
                 reasons.append(why)
                 tier = f
 
-        return TIERS[tier], reasons
+        return TIERS[tier], reasons, round(score, 3)

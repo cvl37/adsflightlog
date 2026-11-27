@@ -18,6 +18,7 @@ from .db import connect
 from . import refdb
 from .tracks import Tracker
 from . import fleet
+from . import editions
 from .operators import OperatorResolver, fix_military
 
 AIRLINE_CALLSIGN = re.compile(r"^([A-Z]{3})\d")
@@ -166,7 +167,7 @@ class Collector:
             flags = (ref["flags"] if ref else "") or ""
             # readsb's own dbFlags (bit 0 military, bit 1 interesting) as fallback.
             dbf = int(ac.get("dbFlags", 0) or 0)
-            card_no = (c.execute("SELECT COALESCE(MAX(card_no),0)+1 FROM airframes").fetchone()[0])
+            card_no = editions.next_card_no(c)   # unique across airframes and editions
             c.execute(
                 """INSERT INTO airframes (hex, card_no, reg, type, model, military, interesting,
                        category, operator, last_callsign, first_seen, last_seen, sightings,
@@ -247,6 +248,7 @@ def main() -> None:
     refdb.update(conn, cfg, log=lambda m: print(m, flush=True))
     fleet.update_opensky(conn, log=lambda m: print(m, flush=True))
 
+    editions.ensure_schema(conn)
     fleet.backfill_days(conn)
     from .rarity import load_seed_specials
     load_seed_specials(conn)

@@ -32,7 +32,7 @@ const fmtTime = (t) => new Date(t * 1000).toLocaleString(undefined, { day: "nume
 const fmtDur = (s) => (s < 60 ? `${Math.round(s)} s` : `${Math.round(s / 60)} min`);
 
 const BADGE_CLASS = (b) =>
-  b === "new" ? "new" : b === "1st edition" ? "b1st" : b === "low pass" ? "low" :
+  b === "new" ? "new" : b === "first of type" ? "b1st" : b === "low pass" ? "low" :
   b.startsWith("squawk") ? "sq" : b === "military" ? "mil" : b === "regular" ? "reg" :
   b === "special livery" ? "spc" : b === "retiring" ? "ret" : b === "one of a kind" ? "one" : "";
 
@@ -47,9 +47,10 @@ function cardHTML(c) {
   const chip = al && al.icon ? `<span class="chip">${logoImg(c.operator, "icon", "")}</span>` : "";
   const op = (al && al.name) || c.operator_name || (c.military && c.country ? `${c.country} military` : "") || (c.operator ? c.operator : c.last_callsign && c.last_callsign !== c.reg ? c.last_callsign : "Private / unknown operator");
   return `
-  <article class="card ${c.rarity}" style="--hue:${hue(c.operator || c.type)}${brand}" data-hex="${esc(c.hex)}" tabindex="0">
+  <article class="card ${c.rarity}${c.retired ? " retired" : ""}" style="--hue:${hue(c.operator || c.type)}${brand}" data-hex="${esc(c.hex)}" data-ed="${c.edition || ""}" tabindex="0">
     <div class="card-inner">
-      <div class="card-head"><span>#${String(c.card_no).padStart(3, "0")} · ${esc(c.series)} SERIES</span><span class="pts">${c.points} PTS</span></div>
+      <div class="card-head"><span>#${String(c.card_no).padStart(3, "0")} · ${esc(c.series)}${c.edition ? ` · ED. ${c.edition}` : " SERIES"}</span><span class="pts">${c.points} PTS</span></div>
+      ${c.retired ? `<div class="retired-stamp">Retired</div>` : ""}
       <div class="art${brand ? " branded" : ""}">${chip}${svg(c.art)}${c.special ? `<span class="special-tag">★ ${esc(c.special.title)}</span>` : ""}<span class="tail">${esc(c.type || "????")}</span></div>
       <div class="plate">
         <div class="reg">${esc(title)}</div>
@@ -76,15 +77,18 @@ const BINDER = { view: "all", key: null, showUnconfirmed: false, showHidden: fal
 function renderBinder() {
   const q = $("#search").value.trim().toLowerCase();
   const rf = $("#rarity-filter").value;
+  const ef = $("#edition-filter").value;
   const sort = $("#sort").value;
   let list = CARDS.filter((c) => {
     if (rf && c.rarity !== rf) return false;
+    if (ef === "current" && c.retired) return false;
+    if (ef === "retired" && !c.retired) return false;
     if (!q) return true;
     return [c.hex, c.reg, c.type, c.type_name, c.model, c.operator, c.operator_name, c.last_callsign]
       .some((v) => v && String(v).toLowerCase().includes(q));
   });
   const by = {
-    newest: (a, b) => b.first_seen - a.first_seen,
+    newest: (a, b) => (b.issued || b.first_seen) - (a.issued || a.first_seen),
     number: (a, b) => a.card_no - b.card_no,
     rarity: (a, b) => TIER_ORDER.indexOf(b.rarity) - TIER_ORDER.indexOf(a.rarity) || b.first_seen - a.first_seen,
     closest: (a, b) => (a.closest_km ?? 1e9) - (b.closest_km ?? 1e9),
@@ -96,6 +100,8 @@ function renderBinder() {
 }
 
 function renderSummary(s) {
+  $("#provisional-note").hidden = s.locked;
+  $("#edition-filter").hidden = !s.locked;
   $("#radius-line").textContent =
     `Catches count within ${s.zones.map((z) => z.text).join(" or ")} of ${s.receiver.lat.toFixed(3)}, ${s.receiver.lon.toFixed(3)}`;
   $("#level").textContent = s.level;
@@ -104,7 +110,7 @@ function renderSummary(s) {
   const tiers = TIER_ORDER.slice().reverse()
     .map((t) => `<span style="color:var(--${t})">${s.by_tier[t]} ${t}</span>`).join("");
   $("#stats").innerHTML = `
-    <div class="stat"><div class="v">${s.cards}</div><div class="k">Cards</div></div>
+    <div class="stat"><div class="v">${s.cards}</div><div class="k">Cards${s.retired ? ` (${s.retired} retired)` : ""}</div></div>
     <div class="stat"><div class="v">${s.types}</div><div class="k">Types</div></div>
     <div class="stat"><div class="v">${s.operators}</div><div class="k">Airlines</div></div>
     <div class="stat"><div class="v">${s.new_24h}</div><div class="k">New today</div></div>
@@ -156,8 +162,8 @@ async function renderLive() {
     </tr>`).join("");
 }
 
-async function openCard(hex) {
-  const c = await api(`/api/card/${hex}`);
+async function openCard(hex, ed) {
+  const c = await api(`/api/card/${hex}${ed ? `?edition=${ed}` : ""}`);
   if (c.error) return;
   const rows = c.history.map((s) => `
     <tr data-sid="${s.id}" class="${s.track_points ? "has-track" : ""}"><td>${fmtTime(s.start)}</td><td>${esc(s.callsign || "—")}</td>
@@ -182,6 +188,9 @@ async function openCard(hex) {
           <dt>Type in binder</dt><dd>${c.type_count} airframe${c.type_count === 1 ? "" : "s"}</dd>
           <dt>Value</dt><dd>${c.points} pts · ${c.rarity}</dd>
         </dl>
+        ${c.retired ? `<p class="retired-note">Retired edition: rarity and details frozen as of ${fmtDate(c.issued)}. ${esc(c.retire_reason || "")}.</p>` : ""}
+        ${c.pending_rarity ? `<p class="pending-note">Currently assessed as <b>${esc(c.pending_rarity)}</b>. A new edition is issued if that holds for 7 days.</p>` : ""}
+        ${c.provisional ? `<p class="pending-note">Provisional rarity: not locked in yet.</p>` : ""}
         <h3>Why it's ${esc(c.rarity)}</h3>
         <ul class="reasons">${(c.rarity_reasons || []).map((r) => `<li>${esc(r)}</li>`).join("")}</ul>
         <details class="special-edit" ${c.special ? "" : ""}>
@@ -193,6 +202,14 @@ async function openCard(hex) {
             <div class="row"><button type="submit">Save</button>${c.special ? `<button type="button" id="special-remove">Remove</button>` : ""}</div>
           </form>
         </details>
+        ${(c.edition_list || []).length > 1 ? `<h3>Editions</h3>
+        <div class="table-wrap"><table class="editions"><thead><tr><th>Ed.</th><th>Card</th><th>Rarity</th><th>Issued</th><th>Status</th></tr></thead><tbody>
+        ${c.edition_list.map((e) => `<tr data-ed="${e.edition}" class="${e.edition === c.edition ? "sel" : ""}">
+          <td>${e.edition}</td><td>#${String(e.card_no).padStart(3, "0")}</td>
+          <td><span class="tier-dot ${esc(e.rarity)}"></span>${esc(e.rarity)}${e.special ? ` · ★ ${esc(e.special.title)}` : ""}</td>
+          <td>${fmtDate(e.issued)}${e.issue_reason && e.edition > 1 ? `<div class="muted">${esc(e.issue_reason)}</div>` : ""}</td>
+          <td>${e.retired ? `retired ${fmtDate(e.retired)}` : "current"}</td></tr>`).join("")}
+        </tbody></table></div>` : ""}
         <h3>Flight path</h3>
         <div id="track-map" class="track-map"></div>
         <div id="track-info" class="track-info"></div>
@@ -206,6 +223,10 @@ async function openCard(hex) {
   $("#modal-body").scrollTop = 0;
   $(".modal-inner").scrollTop = 0;
   setupMap();
+  $("#modal-body .editions")?.addEventListener("click", (e) => {
+    const tr = e.target.closest("tr[data-ed]");
+    if (tr && +tr.dataset.ed !== c.edition) openCard(hex, tr.dataset.ed);
+  });
   const sf = $("#special-form");
   const saveSpecial = async (payload) => {
     await fetch(`/api/card/${hex}/special`, {
@@ -360,8 +381,9 @@ document.querySelectorAll(".tabs button").forEach((b) =>
   })
 );
 ["#search", "#rarity-filter", "#sort"].forEach((s) => $(s).addEventListener("input", renderBinder));
-$("#cards").addEventListener("click", (e) => { const c = e.target.closest(".card"); if (c) openCard(c.dataset.hex); });
-$("#cards").addEventListener("keydown", (e) => { if (e.key === "Enter") { const c = e.target.closest(".card"); if (c) openCard(c.dataset.hex); } });
+$("#cards").addEventListener("click", (e) => { const c = e.target.closest(".card"); if (c) openCard(c.dataset.hex, c.dataset.ed); });
+$("#cards").addEventListener("keydown", (e) => { if (e.key === "Enter") { const c = e.target.closest(".card"); if (c) openCard(c.dataset.hex, c.dataset.ed); } });
+$("#edition-filter").addEventListener("input", renderBinder);
 function closeModal() {
   $("#modal").hidden = true;
   document.body.classList.remove("modal-open");
@@ -422,7 +444,7 @@ async function renderBinderIndex(view) {
 
 function sleeveHTML(r, view, pageKey) {
   if (r.collected) {
-    const card = CARDS.find((c) => c.hex === r.hex);
+    const card = CARDS.find((c) => c.hex === r.hex && !c.retired) || CARDS.find((c) => c.hex === r.hex);
     if (card) return cardHTML(card);
   }
   const model = r.type_name || r.model || r.type || "Unknown type";
@@ -494,7 +516,7 @@ function drawBinderPage() {
   root.querySelector(".back").addEventListener("click", () => setBinderView(view));
   root.querySelector("#opt-unconf")?.addEventListener("change", (e) => { BINDER.showUnconfirmed = e.target.checked; drawBinderPage(); });
   root.querySelector("#opt-hidden")?.addEventListener("change", (e) => { BINDER.showHidden = e.target.checked; drawBinderPage(); });
-  root.querySelectorAll(".card").forEach((c) => c.addEventListener("click", () => openCard(c.dataset.hex)));
+  root.querySelectorAll(".card").forEach((c) => c.addEventListener("click", () => openCard(c.dataset.hex, c.dataset.ed)));
   root.querySelectorAll(".s-hide").forEach((b) => b.addEventListener("click", async () => {
     await fetch(`/api/binder/airline/${encodeURIComponent(d.key)}/hide`, {
       method: "POST", headers: { "Content-Type": "application/json" },

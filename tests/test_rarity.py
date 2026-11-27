@@ -61,7 +61,7 @@ class Rarity(unittest.TestCase):
         self.background()
         for d in range(30):
             self.heard(f"b{d % 3:05x}", "AAL", [d])
-        tier, reasons = self.model().assess(self.card("b00000", "B772", "AAL"))
+        tier, reasons, _ = self.model().assess(self.card("b00000", "B772", "AAL"))
         self.assertEqual(tier, "common")
         self.assertTrue(any(r.startswith("Local (20%)") for r in reasons))
 
@@ -74,7 +74,7 @@ class Rarity(unittest.TestCase):
         self.assertEqual(self.model().assess(self.card("b00009", "B772", "KLM", reg="PH-XXX"))[0], "epic")
 
     def test_retiring_type_scores_higher_worldwide(self):
-        tier, reasons = self.model().assess(self.card("c00001", "A343", "DLH"))
+        tier, reasons, _ = self.model().assess(self.card("c00001", "A343", "DLH"))
         self.assertEqual(tier, "rare")
         self.assertTrue(any("A340" in r and "3/4" in r for r in reasons))
 
@@ -94,7 +94,7 @@ class Rarity(unittest.TestCase):
         # Only Schiphol history (no receiver data): a daily American 777 is common.
         rows = [(day(d), "a00100", "BGX") for d in range(30)] + [(day(d), f"b{d % 3:05x}", "AAL") for d in range(30)]
         self.conn.executemany("INSERT INTO airport_days VALUES (?,?,?)", rows)
-        tier, reasons = self.model().assess(self.card("b00000", "B772", "AAL"))
+        tier, reasons, _ = self.model().assess(self.card("b00000", "B772", "AAL"))
         self.assertEqual(tier, "common")
         self.assertFalse(any("still learning" in r for r in reasons))
 

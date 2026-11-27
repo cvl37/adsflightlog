@@ -39,6 +39,7 @@
       <button data-view="manufacturer">Manufacturers</button>
       <button data-view="type">Types</button>
     </div>
+    <p id="provisional-note" class="provisional-note" hidden>Rarities are <b>provisional</b> until they're locked in: they still change as traffic patterns are learned.</p>
     <div id="binder-pages" hidden></div>
     <div id="binder-all">
     <div class="toolbar">
@@ -50,6 +51,11 @@
         <option value="rare">Rare</option>
         <option value="uncommon">Uncommon</option>
         <option value="common">Common</option>
+      </select>
+      <select id="edition-filter" hidden>
+        <option value="">Current + retired</option>
+        <option value="current">Current editions</option>
+        <option value="retired">Retired editions</option>
       </select>
       <select id="sort">
         <option value="newest">Newest catches</option>

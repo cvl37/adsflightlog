@@ -23,6 +23,8 @@ from .operators import OperatorResolver
 from .rarity import RarityModel, SPECIALS_SCHEMA, load_seed_specials
 from . import tracks
 from . import fleet
+from . import editions
+import threading
 
 STATIC = cfgmod.ROOT / "web"
 
@@ -43,6 +45,28 @@ class App:
         load_seed_specials(self.conn())
         self._model: RarityModel | None = None
         self._model_t = 0.0
+        with self.conn() as c:
+            editions.ensure_schema(c)
+
+    def start_sync(self) -> None:
+        """Hourly edition check in the background (only does work once locked in)."""
+        def loop():
+            while True:
+                try:
+                    self.sync_editions()
+                except Exception as e:  # noqa: BLE001 — keep the server alive
+                    print(f"web: edition sync failed: {e}", flush=True)
+                time.sleep(3600)
+        threading.Thread(target=loop, daemon=True, name="edition-sync").start()
+
+    def sync_editions(self) -> list[str]:
+        with self.conn() as c:
+            if not editions.locked_at(c):
+                return []
+            events = editions.sync(c, self.provisional_cards(), stable_days=self.cfg.editions_stable_days)
+        for e in events:
+            print(f"web: new edition: {e}", flush=True)
+        return events
 
     def model(self) -> RarityModel:
         # Rebuilt every 10 minutes (or after a special-livery edit).
@@ -57,6 +81,7 @@ class App:
         with self.conn() as c:
             c.executescript(SPECIALS_SCHEMA)
             if title:
+                c.execute("DELETE FROM specials_suppressed WHERE hex=?", (hx,))
                 reg = c.execute("SELECT reg FROM airframes WHERE hex=?", (hx,)).fetchone()
                 c.execute(
                     """INSERT INTO specials (hex, reg, title, note, one_off, source, added)
@@ -66,7 +91,9 @@ class App:
                     (hx, reg[0] if reg else None, title, note, int(one_off), time.time()))
             else:
                 c.execute("DELETE FROM specials WHERE hex=?", (hx,))
+                c.execute("INSERT OR IGNORE INTO specials_suppressed VALUES (?)", (hx,))
         self._model = None
+        self.sync_editions()   # a livery change issues a new edition right away
 
     def conn(self):
         c = connect(self.cfg.database)
@@ -74,13 +101,34 @@ class App:
         c.executescript(fleet.SCHEMA)
         return c
 
-    def cards(self) -> list[dict]:
+    def provisional_cards(self) -> list[dict]:
+        """One card per airframe with its live (not locked-in) rarity."""
         with self.conn() as c:
             rows = [dict(r) for r in c.execute(CARD_SQL + " ORDER BY a.card_no")]
         for r in rows:
             r["airline"] = self.logos.info(r["operator"])
             r["country"] = self.resolver.country(r["hex"])
         return build_cards(rows, self.model())
+
+    def _relabel(self, op: str | None) -> dict:
+        with self.conn() as c:
+            o = c.execute("SELECT name, country FROM ref_operators WHERE icao=?", (op,)).fetchone() if op else None
+        return {"operator": op, "airline": self.logos.info(op),
+                "operator_name": o["name"] if o else None, "operator_country": o["country"] if o else None}
+
+    def cards(self) -> list[dict]:
+        """Before lock-in: provisional cards. After: one card per edition (retired ones included)."""
+        prov = self.provisional_cards()
+        with self.conn() as c:
+            if not editions.locked_at(c):
+                for p in prov:
+                    p["edition"], p["retired"], p["provisional"] = None, None, True
+                return prov
+            editions.ensure_first_editions(c, prov)
+            eds = editions.by_hex(c)
+            pending = dict(c.execute("SELECT hex, rarity FROM edition_pending").fetchall())
+        out = editions.apply(prov, eds, POINTS, pending, self._relabel)
+        return sorted(out, key=lambda d: d["card_no"])
 
     def summary(self) -> dict:
         cards = self.cards()
@@ -104,6 +152,8 @@ class App:
             "receiver": {"lat": self.cfg.lat, "lon": self.cfg.lon},
             "zones": [{**vars(z), "text": z.describe()} for z in self.cfg.zones],
             "cards": len(cards),
+            "retired": sum(1 for c in cards if c.get("retired")),
+            "locked": bool(self._locked()),
             "types": len({c["type"] for c in cards if c["type"]}),
             "operators": len({c["operator"] for c in cards if c["operator"]}),
             "sightings": n_sightings,
@@ -116,11 +166,26 @@ class App:
             "points": POINTS,
         }
 
-    def card(self, hx: str) -> dict | None:
-        cards = {c["hex"]: c for c in self.cards()}
-        card = cards.get(hx.lower())
-        if not card:
+    def _locked(self) -> float | None:
+        with self.conn() as c:
+            return editions.locked_at(c)
+
+    def card(self, hx: str, edition: int | None = None) -> dict | None:
+        hx = hx.lower()
+        mine = [c for c in self.cards() if c["hex"] == hx]
+        if not mine:
             return None
+        if edition:
+            card = next((c for c in mine if c.get("edition") == edition), None)
+            if not card:
+                return None
+        else:   # the current edition
+            card = next((c for c in reversed(mine) if not c.get("retired")), mine[-1])
+        card["edition_list"] = [
+            {k: c.get(k) for k in ("edition", "card_no", "rarity", "issued", "issue_reason",
+                                   "retired", "retire_reason", "special", "reg")}
+            for c in mine if c.get("edition")
+        ]
         with self.conn() as c:
             card["history"] = [
                 dict(r) for r in c.execute(
@@ -344,7 +409,8 @@ def make_handler(app: App):
                 if p == "/api/cards":
                     return self._json(app.cards())
                 if p.startswith("/api/card/"):
-                    card = app.card(p.rsplit("/", 1)[-1])
+                    ed = parse_qs(url.query).get("edition", [None])[0]
+                    card = app.card(p.rsplit("/", 1)[-1], int(ed) if ed and ed.isdigit() else None)
                     return self._json(card) if card else self._json({"error": "not found"}, 404)
                 m = re.fullmatch(r"/api/sighting/(\d+)/track(\.geojson)?", p)
                 if m:
@@ -447,7 +513,9 @@ def make_handler(app: App):
 def main() -> None:
     cfg = cfgmod.load(sys.argv[1] if len(sys.argv) > 1 else None)
     connect(cfg.database).close()
-    srv = ThreadingHTTPServer((cfg.web_host, cfg.web_port), make_handler(App(cfg)))
+    app = App(cfg)
+    app.start_sync()
+    srv = ThreadingHTTPServer((cfg.web_host, cfg.web_port), make_handler(app))
     print(f"web: http://{cfg.web_host}:{cfg.web_port}/", flush=True)
     srv.serve_forever()
 
