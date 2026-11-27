@@ -1,7 +1,8 @@
 [Unit]
 Description=ADS Flight Log collector (logs aircraft inside the configured radius)
-After=readsb.service
-Wants=readsb.service
+# Ordering only: don't pull in a native readsb. The decoder may run elsewhere
+# (e.g. a Docker ultrafeeder), and the collector retries until aircraft.json exists.
+After=readsb.service docker.service
 
 [Service]
 User=@USER@
