@@ -10,18 +10,32 @@ aircraft_json = "/run/readsb/aircraft.json"
 receiver_json = "/run/readsb/receiver.json"
 
 [collect]
-# Only aircraft whose position is within this distance of the receiver count
-# as a "catch". Anything further away is ignored completely.
-max_distance_km = 25.0
-# Optional ceiling: ignore aircraft above this barometric altitude (feet).
-# Set to 0 to disable.
-max_altitude_ft = 0
 # Ignore positions older than this (seconds) — avoids counting stale tracks.
 max_position_age_s = 15
 # Poll interval for aircraft.json (seconds).
 poll_interval_s = 5
 # A new "sighting" of an already-caught airframe starts after this gap (minutes).
 sighting_gap_min = 20
+
+# Catch zones: an aircraft counts if it is inside ANY zone (once, even if it is
+# inside several). Each zone is a circle around the receiver, optionally cut to
+# a sector between two true bearings (clockwise from bearing_from to bearing_to,
+# so 330 -> 30 is a slice across north) and optionally limited to aircraft below
+# max_altitude_ft. Aircraft with unknown altitude never count in a zone that has
+# an altitude limit.
+
+[[collect.zone]]
+name = "overhead"
+max_distance_km = 25.0
+
+# Example of a sector zone ("pizza slice"): 40 km, from south-east (135)
+# clockwise to south-west (225), only below 10,000 ft.
+# [[collect.zone]]
+# name = "southern approach"
+# max_distance_km = 40.0
+# bearing_from = 135
+# bearing_to = 225
+# max_altitude_ft = 10000
 
 [storage]
 database = "data/adsflightlog.db"

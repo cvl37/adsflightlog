@@ -28,6 +28,21 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
+def bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Initial true bearing from point 1 to point 2, 0..360."""
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dl = math.radians(lon2 - lon1)
+    x = math.sin(dl) * math.cos(p2)
+    y = math.cos(p1) * math.sin(p2) - math.sin(p1) * math.cos(p2) * math.cos(dl)
+    return math.degrees(math.atan2(x, y)) % 360
+
+
+def in_sector(brg: float, start: float, end: float) -> bool:
+    """True if bearing lies on the clockwise arc from start to end (inclusive)."""
+    span = (end - start) % 360 or 360
+    return (brg - start) % 360 <= span
+
+
 def altitude(ac: dict) -> int | None:
     alt = ac.get("alt_baro", ac.get("alt_geom"))
     if alt == "ground":
@@ -35,20 +50,35 @@ def altitude(ac: dict) -> int | None:
     return int(alt) if isinstance(alt, (int, float)) else None
 
 
+def zone_hit(zone: cfgmod.Zone, dist: float, brg: float, alt: int | None) -> bool:
+    if dist > zone.max_distance_km:
+        return False
+    if zone.bearing_from is not None and not in_sector(brg, zone.bearing_from, zone.bearing_to):
+        return False
+    if zone.max_altitude_ft is not None:
+        # Unknown altitude can't be shown to be below the ceiling: don't count it.
+        if alt is None or alt >= zone.max_altitude_ft:
+            return False
+    return True
+
+
 def in_range(cfg: cfgmod.Config, ac: dict) -> float | None:
-    """Return distance in km if this aircraft counts as a catch, else None."""
+    """Return distance in km if this aircraft is inside any zone, else None.
+
+    Zones overlap freely; an aircraft inside several still counts once.
+    """
     if "lat" not in ac or "lon" not in ac:
         return None
     if ac.get("seen_pos", 0) > cfg.max_position_age_s:
         return None
     dist = haversine_km(cfg.lat, cfg.lon, ac["lat"], ac["lon"])
-    if dist > cfg.max_distance_km:
+    if dist > max(z.max_distance_km for z in cfg.zones):
         return None
-    if cfg.max_altitude_ft:
-        alt = altitude(ac)
-        if alt is not None and alt > cfg.max_altitude_ft:
-            return None
-    return dist
+    brg = bearing_deg(cfg.lat, cfg.lon, ac["lat"], ac["lon"])
+    alt = altitude(ac)
+    if any(zone_hit(z, dist, brg, alt) for z in cfg.zones):
+        return dist
+    return None
 
 
 def _max(a, b):
@@ -188,8 +218,8 @@ def main() -> None:
     conn = connect(cfg.database)
     refdb.update(conn, cfg, log=lambda m: print(m, flush=True))
 
-    print(f"collector: receiver {cfg.lat:.4f},{cfg.lon:.4f}, radius {cfg.max_distance_km} km"
-          + (f", ceiling {cfg.max_altitude_ft} ft" if cfg.max_altitude_ft else ""), flush=True)
+    print(f"collector: receiver {cfg.lat:.4f},{cfg.lon:.4f}; zones: "
+          + "; ".join(f"{z.name} ({z.describe()})" for z in cfg.zones), flush=True)
 
     running = True
 

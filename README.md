@@ -31,18 +31,35 @@ python3 -m adsflightlog.web config.toml      # http://<pi>:8642/
 
 ## What counts as a catch
 
-All of these settings live in `config.toml`:
+All of these settings live in `config.toml`. You define one or more **catch zones**. An aircraft counts as a catch if it is inside *any* zone. If it is inside several zones at once, it still counts once, and all zones count equally.
+
+```toml
+# Everything within 25 km, any altitude
+[[collect.zone]]
+name = "overhead"
+max_distance_km = 25.0
+
+# A "pizza slice": 40 km, from south-east (135°) clockwise to south-west (225°), below 10,000 ft
+[[collect.zone]]
+name = "southern approach"
+max_distance_km = 40.0
+bearing_from = 135
+bearing_to = 225
+max_altitude_ft = 10000
+```
 
 | Setting | Meaning |
 |---|---|
-| `receiver.lat` / `receiver.lon` | Where distances are measured from. If left out, it is read from readsb's `receiver.json`. |
-| `collect.max_distance_km` | **Only aircraft inside this radius count.** Anything further away is ignored. |
-| `collect.max_altitude_ft` | Optional ceiling (0 = off), e.g. to only collect low overflights. |
+| `receiver.lat` / `receiver.lon` | Where distances and bearings are measured from. If left out, it is read from readsb's `receiver.json`. |
+| `zone.max_distance_km` | Radius of the zone. |
+| `zone.bearing_from` / `bearing_to` | Optional sector, in true degrees, measured clockwise from `bearing_from` to `bearing_to`. For example, `330` → `30` is a slice across north. |
+| `zone.max_altitude_ft` | Optional ceiling. An aircraft counts only if it is strictly below this altitude. If its altitude is unknown, it doesn't count in this zone. |
 | `collect.max_position_age_s` | Stale positions are ignored. |
 | `collect.sighting_gap_min` | A gap this long starts a new "sighting" of a known airframe. |
 
-Changing the radius applies from then on. Cards you already collected stay in
-your binder.
+Changes to the zones apply from then on. Cards you already collected stay in your binder.
+
+Run the zone geometry tests with `python3 -m unittest discover -s tests -t .`.
 
 ## Cards
 

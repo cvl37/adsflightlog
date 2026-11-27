@@ -65,8 +65,7 @@ class App:
             need = int(need * 1.2)
         return {
             "receiver": {"lat": self.cfg.lat, "lon": self.cfg.lon},
-            "radius_km": self.cfg.max_distance_km,
-            "ceiling_ft": self.cfg.max_altitude_ft or None,
+            "zones": [{**vars(z), "text": z.describe()} for z in self.cfg.zones],
             "cards": len(cards),
             "types": len({c["type"] for c in cards if c["type"]}),
             "operators": len({c["operator"] for c in cards if c["operator"]}),
@@ -145,7 +144,7 @@ class App:
                 "collected": hx in known,
             })
         out.sort(key=lambda a: a["dist_km"])
-        return {"aircraft": out, "outside_radius": outside, "radius_km": self.cfg.max_distance_km}
+        return {"aircraft": out, "outside_radius": outside}
 
 
 def make_handler(app: App):

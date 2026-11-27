@@ -93,8 +93,7 @@ function renderBinder() {
 
 function renderSummary(s) {
   $("#radius-line").textContent =
-    `Catches count within ${s.radius_km} km of ${s.receiver.lat.toFixed(3)}, ${s.receiver.lon.toFixed(3)}` +
-    (s.ceiling_ft ? ` · below ${s.ceiling_ft.toLocaleString()} ft` : "");
+    `Catches count within ${s.zones.map((z) => z.text).join(" or ")} of ${s.receiver.lat.toFixed(3)}, ${s.receiver.lon.toFixed(3)}`;
   $("#level").textContent = s.level;
   $("#score").textContent = `${s.score.toLocaleString()} pts`;
   $("#level-bar").style.width = `${Math.round(s.level_progress * 100)}%`;
@@ -143,7 +142,7 @@ async function renderLive() {
   const d = await api("/api/live");
   $("#live-count").textContent = d.aircraft.length;
   $("#live-hint").textContent = d.error ||
-    `${d.aircraft.length} aircraft inside your ${d.radius_km} km radius right now · ${d.outside_radius} more tracked outside it (not counted).`;
+    `${d.aircraft.length} aircraft inside your catch zones right now · ${d.outside_radius} more tracked outside them (not counted).`;
   $("#live-body").innerHTML = d.aircraft.map((a) => `
     <tr>
       <td>${esc(a.callsign || "—")}</td><td><code>${esc(a.hex)}</code></td>
