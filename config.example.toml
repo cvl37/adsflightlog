@@ -59,3 +59,9 @@ refresh_days = 7
 [web]
 host = "0.0.0.0"
 port = 8642
+
+[backup]
+# Optional daily backup via rclone (python3 -m adsflightlog.backup).
+# remote = "myremote:adsflightlog/"
+# root_folder_id = ""   # Google Drive: ID of the target folder (optional)
+# keep_days = 30

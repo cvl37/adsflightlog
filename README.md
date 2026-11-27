@@ -121,6 +121,20 @@ after_min = 30
 
 Card rules live in `adsflightlog/cards.py`.
 
+## Backups
+
+`python3 -m adsflightlog.backup` uploads a daily archive (`adsflightlog-YYYY-MM-DD.tar.gz`) to any [rclone](https://rclone.org) remote and keeps the last `keep_days`. The archive holds a consistent database snapshot, safe to take while the collector runs, plus your `config.toml`. Reference tables are left out because they re-import automatically. Configure it under `[backup]` in `config.toml`, and schedule it, e.g. with cron:
+
+```
+30 3 * * * cd ~/adsflightlog && python3 -m adsflightlog.backup > data/backup-last-run.log 2>&1
+```
+
+**To restore:**
+1. Stop both services.
+2. Extract the archive.
+3. Put `adsflightlog.db` in `data/` and `config.toml` in the repo root.
+4. Start the services again. Reference data downloads and imports itself.
+
 ## Data
 
 The SQLite database is at `data/adsflightlog.db` (git-ignored). It has three kinds of tables:
