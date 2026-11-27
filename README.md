@@ -71,6 +71,16 @@ A card's operator normally comes from the callsign's ICAO airline prefix (`KLM12
 
 Mission callsigns (`MISSION_CALLSIGNS`) are never used as an operator, for any aircraft.
 
+## Airport history (OpenSky)
+
+`python3 -m adsflightlog.history` imports every arrival and departure at an airport (default Schiphol, `EHAM`) for the last `history_days` (default 60), with aircraft address and callsign, from the [OpenSky Network](https://opensky-network.org).
+
+- **What it's for:** "local regularity" in the rarity score uses it together with what your receiver hears. Rarity reflects real airport traffic from day one, instead of after weeks of listening.
+- **Setup:** it needs a free OpenSky account with an **API client**; put its credentials under `[opensky]` in `config.toml`.
+- **Cost:** each one-day query costs 30 of the 4,000 daily API credits, so the initial 60 days fit in one run.
+- **Resuming:** the import resumes where it left off. Re-running it (e.g. daily) adds the days since the last run.
+- **Storage:** data goes into `airport_days` (one row per aircraft per day), kept for 120 days.
+
 ## Binder pages: fleets, manufacturers and types
 
 Besides the **All cards** view, the binder has pages per **airline/operator**, **manufacturer** and **aircraft type**. You only get pages you hold at least one card for. Each page shows your cards plus an **empty sleeve** for every airframe you could still catch, with a progress bar.
@@ -118,7 +128,7 @@ after_min = 30
   |---|---|---|
   | Special livery | 45% | 4 one of a kind, 3 special but shared, 0 none |
   | Worldwide numbers | 35% | registered airframes of the type: thousands 0 … a handful 4. Retiring or out-of-production types (`SUNSET`) score +1. |
-  | Local regularity | 20% | how often your receiver hears this airline + type: daily 0 … (almost) never 4. For a special livery it's that one aircraft. |
+  | Local regularity | 20% | how often this airline + type is seen, by your receiver or at Schiphol (OpenSky history): daily 0 … (almost) never 4. For a special livery it's that one aircraft. |
 
   - The weighted score maps to a tier: common below 0.6, uncommon below 1.25, rare below 1.9, epic below 2.6, legendary from 2.6 up.
   - Local regularity builds up over `learn_days` (default 28). Until then it's blended with an estimate: having heard several airframes of the type already counts as routine.

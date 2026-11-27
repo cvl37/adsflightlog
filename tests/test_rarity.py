@@ -4,7 +4,7 @@ import time
 import unittest
 from pathlib import Path
 
-from adsflightlog import fleet
+from adsflightlog import fleet, history
 from adsflightlog.db import connect
 from adsflightlog.rarity import RarityModel, SPECIALS_SCHEMA
 
@@ -20,6 +20,7 @@ class Rarity(unittest.TestCase):
         c = self.conn = connect(Path(":memory:"))
         c.executescript(fleet.SCHEMA)
         c.executescript(SPECIALS_SCHEMA)
+        c.executescript(history.SCHEMA)
         refs = []
         refs += [(f"a{i:05x}", None, "A320", "00", None) for i in range(2000)]   # common worldwide
         refs += [(f"b{i:05x}", None, "B772", "00", None) for i in range(400)]    # uncommon worldwide
@@ -88,6 +89,14 @@ class Rarity(unittest.TestCase):
     def test_weights_are_normalised(self):
         m = self.model(weights={"special": 45, "worldwide": 35, "local": 20})
         self.assertAlmostEqual(sum(m.weights.values()), 1.0)
+
+    def test_airport_history_counts_as_local(self):
+        # Only Schiphol history (no receiver data): a daily American 777 is common.
+        rows = [(day(d), "a00100", "BGX") for d in range(30)] + [(day(d), f"b{d % 3:05x}", "AAL") for d in range(30)]
+        self.conn.executemany("INSERT INTO airport_days VALUES (?,?,?)", rows)
+        tier, reasons = self.model().assess(self.card("b00000", "B772", "AAL"))
+        self.assertEqual(tier, "common")
+        self.assertFalse(any("still learning" in r for r in reasons))
 
     def test_military_and_unknown_floor(self):
         m = self.model()

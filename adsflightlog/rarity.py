@@ -11,7 +11,8 @@ with configurable weights (``[rarity]`` in config.toml):
   Types being retired or out of production (``SUNSET``) score one point higher.
 * **Local regularity** (default 20%): learned from your own receiver. On how
   many of the recent days was this airline + type (or the type, for aircraft
-  without an airline callsign) heard? Daily = 0, (almost) never = 4. Until
+  without an airline callsign) seen, by your receiver or at Schiphol
+  (OpenSky arrivals/departures, see history.py)? Daily = 0, (almost) never = 4. Until
   ``learn_days`` of data exist, it is blended with an estimate: having heard
   several different airframes of it already marks it as routine; otherwise
   the worldwide score is used.
@@ -180,6 +181,10 @@ class RarityModel:
         conn.executescript(SPECIALS_SCHEMA)
         since_day = time.strftime("%Y-%m-%d", time.localtime(now - WINDOW_DAYS * 86400))
         has_days = conn.execute("SELECT 1 FROM sqlite_master WHERE name='spotted_days'").fetchone()
+        has_airport = conn.execute("SELECT 1 FROM sqlite_master WHERE name='airport_days'").fetchone()
+        # Days an airframe was seen: heard by the receiver, or at the airport (OpenSky history).
+        days_src = ("(SELECT day, hex, operator FROM spotted_days UNION ALL "
+                    "SELECT day, hex, operator FROM airport_days)") if has_airport else "spotted_days"
 
         self.days = 0.0
         self.n_days = 0
@@ -190,7 +195,7 @@ class RarityModel:
         if has_days:
             all_days = set()
             for day, hx, typ, op in conn.execute(
-                """SELECT d.day, d.hex, r.type, d.operator FROM spotted_days d
+                f"""SELECT d.day, d.hex, r.type, d.operator FROM {days_src} d
                    JOIN ref_aircraft r ON r.hex = d.hex WHERE d.day >= ?""", (since_day,)
             ):
                 all_days.add(day)
@@ -216,7 +221,7 @@ class RarityModel:
         if has_days and self.specials:
             q = ",".join("?" * len(self.specials))
             self.hex_days = dict(conn.execute(
-                f"SELECT hex, COUNT(*) FROM spotted_days WHERE day >= ? AND hex IN ({q}) GROUP BY hex",
+                f"SELECT hex, COUNT(DISTINCT day) FROM {days_src} WHERE day >= ? AND hex IN ({q}) GROUP BY hex",
                 (since_day, *self.specials)))
 
     # ------------------------------------------------------------------
@@ -255,7 +260,7 @@ class RarityModel:
             p = min(1.0, k / max(self.days, 1.0))
             s_local_raw = _local(p, k)
             estimate = 2.0   # one aircraft: no way to guess its schedule yet
-            local_txt = (f"{c.get('reg') or 'this aircraft'} itself heard on {k} of the last "
+            local_txt = (f"{c.get('reg') or 'this aircraft'} itself seen on {k} of the last "
                          f"{self.n_days} day{'s' if self.n_days != 1 else ''}")
         elif self.n_days and typ:
             key_days = self.combo_days.get((op, typ)) if op else self.type_days.get(typ)
@@ -270,7 +275,7 @@ class RarityModel:
             if ab_type is not None:
                 estimate = min(estimate, ab_type + 0.5)   # weaker: same type, any airline
             what = f"{op_label} {typ}" if op else type_label
-            local_txt = (f"{what} heard on {k} of the last {self.n_days} day{'s' if self.n_days != 1 else ''}"
+            local_txt = (f"{what} seen on {k} of the last {self.n_days} day{'s' if self.n_days != 1 else ''}"
                          f" ({n_air} airframe{'s' if n_air != 1 else ''})")
         s_local = conf * s_local_raw + (1 - conf) * estimate if s_local_raw is not None else estimate
         learning = f"; still learning ({self.days:.1f} of {self.learn_days:g} days)" if conf < 1 else ""

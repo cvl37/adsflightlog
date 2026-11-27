@@ -481,7 +481,7 @@ function drawBinderPage() {
     ${view === "airline" ? `<div class="page-tools">
       <label><input type="checkbox" id="opt-unconf" ${BINDER.showUnconfirmed ? "checked" : ""}> Show unconfirmed (${d.unconfirmed})</label>
       <label><input type="checkbox" id="opt-hidden" ${BINDER.showHidden ? "checked" : ""}> Show hidden (${d.hidden})</label>
-      <span class="muted">Confirmed = heard flying as ${esc(d.key)} in the last 180 days. Unconfirmed = only in older OpenSky data.</span>
+      <span class="muted">Confirmed = seen flying as ${esc(d.key)} in the last 180 days (your receiver or Schiphol traffic). Unconfirmed = only in older OpenSky data.</span>
     </div>` : ""}`;
   const body = ordered.map(([g, rs]) => {
     rs.sort((a, b) => b.collected - a.collected || (a.reg || "").localeCompare(b.reg || ""));

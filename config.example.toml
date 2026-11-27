@@ -73,3 +73,11 @@ port = 8642
 # remote = "myremote:adsflightlog/"
 # root_folder_id = ""   # Google Drive: ID of the target folder (optional)
 # keep_days = 30
+
+[opensky]
+# Optional: import arrival/departure history for an airport from the OpenSky
+# Network (free account -> API client). Feeds rarity's "local regularity".
+# client_id = "yourname-api-client"
+# client_secret = "..."
+# airport = "EHAM"
+# history_days = 60
