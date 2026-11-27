@@ -28,7 +28,7 @@ import sqlite3
 import time
 import urllib.request
 
-from . import home
+from . import home, owners
 
 OPENSKY_LIST = "https://s3.opensky-network.org/data-samples?list-type=2&prefix=metadata/aircraft-database-complete-"
 OPENSKY_FILE = "https://s3.opensky-network.org/data-samples/{key}"
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS fleet_hidden (
     hex      TEXT NOT NULL,
     PRIMARY KEY (operator, hex)
 ) WITHOUT ROWID;
-""" + home.SCHEMA
+""" + home.SCHEMA + owners.SCHEMA
 
 
 def manufacturer(type_name: str | None) -> str:

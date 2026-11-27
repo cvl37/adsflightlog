@@ -71,6 +71,19 @@ A card's operator normally comes from the callsign's ICAO airline prefix (`KLM12
 
 Mission callsigns (`MISSION_CALLSIGNS`) are never used as an operator, for any aircraft.
 
+### Home airline: one airline per airframe
+
+Aircraft often fly another airline's flight numbers: KLM Cityhopper jets as `KLM…`, or wet-leases such as HOP's F-HBLJ on KLM flights. A civil airframe's card and fleet page use the airline it **belongs to**, not the callsign (`adsflightlog/home.py`), decided in this order:
+
+1. **hexdb.io** ([hexdb.io](https://hexdb.io), free, no key): its registered operator code (`OperatorFlagCode`), e.g. YR-ABA → Carpatair. The collector looks airframes up in the background, one every 2 s, caught cards first. Answers are cached in `ref_owner` and re-checked after 90 days. An answer is ignored once the aircraft has been re-registered.
+2. **OpenSky** operator (`ref_fleet`, see below), if that airline was heard flying in the last 180 days (the export still lists defunct airlines).
+3. Otherwise a guess from the callsigns it was heard under:
+   - an airline from the country of registration (the 24-bit address block) wins;
+   - when there are several, the smaller fleet wins (the regional flying for the mainline brand);
+   - a foreign airframe flying for several airlines is a **wet-lease**: it counts for no fleet, and the card shows "Wet-lease for …".
+
+Manual corrections win over all of this: `INSERT INTO home_overrides VALUES ('<hex>', '<ICAO>')`. Home airlines are recomputed at collector start, every 6 hours, as lookups come in, and after a history import. The card's detail view shows "Flies for" when the callsign airline differs.
+
 ## Airport history (OpenSky)
 
 `python3 -m adsflightlog.history` imports every arrival and departure at an airport (default Schiphol, `EHAM`) for the last `history_days` (default 60), with aircraft address and callsign, from the [OpenSky Network](https://opensky-network.org).
@@ -88,11 +101,11 @@ Besides the **All cards** view, the binder has pages per **airline/operator**, *
 Where the empty sleeves come from:
 
 - **Spotting log (your receiver).** Every aircraft the receiver hears is logged, at any distance and not just in your zones, along with every airline callsign it flies under (`spotted`, `spotted_ops`). Writes are batched every 5 minutes.
-  - An airframe heard flying as e.g. KLM in the last 180 days is a **confirmed** member of KLM's fleet.
+  - An airframe whose home airline is KLM (see [Home airline](#home-airline-one-airline-per-airframe)) and that was heard in the last 180 days is a **confirmed** member of KLM's fleet.
   - Manufacturer and type pages show airframes your receiver has heard but you haven't caught yet.
 - **OpenSky seed list.** The OpenSky Network aircraft database (crowdsourced, "as is") lists an operator for about 50k airframes, but its last full export is older (currently August 2025). It is imported once and re-checked monthly (`ref_fleet`). Two kinds of entries are dropped:
   - airframes re-registered since the export;
-  - airframes recently heard flying for another airline.
+  - airframes whose home airline was decided otherwise (hexdb.io, or heard flying).
   Of the rest, entries of a type the airline is known to fly show as "not yet heard". Others are **unconfirmed**: hidden by default, because they're often retired aircraft.
 - **Hiding.** If a sleeve is wrong (e.g. an aircraft that has left the fleet), hide it with its × button.
 

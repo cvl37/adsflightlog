@@ -20,7 +20,7 @@ class Fleet(unittest.TestCase):
             ("000002", "XX-AAB", "B738", "00", None),
             ("000003", "XX-AAC", "B744", "00", None),   # old type, never heard
             ("000004", "YY-NEW", "B738", "00", None),   # re-registered since export
-            ("000005", "XX-AAE", "B738", "00", None),   # now flies for someone else
+            ("000005", "XX-AAE", "B738", "00", None),   # OpenSky: TST, heard flying for OTH
             ("000006", "XX-AAF", "A20N", "00", None),   # not in OpenSky, but heard
         ])
         c.executemany("INSERT INTO ref_fleet VALUES (?,?,?,?)", [
@@ -49,7 +49,8 @@ class Fleet(unittest.TestCase):
         self.assertEqual(rows["000002"]["status"], "listed")       # type B738 is confirmed for TST
         self.assertEqual(rows["000003"]["status"], "unconfirmed")  # B744 never seen for TST
         self.assertNotIn("000004", rows)                          # re-registered
-        self.assertNotIn("000005", rows)                          # heard flying for OTH
+        # OpenSky (a registry source) outranks the callsign it was heard under.
+        self.assertEqual(rows["000005"]["status"], "confirmed")
         self.assertEqual(rows["000006"]["status"], "confirmed")    # heard as TST123
         self.assertEqual(rows["000006"]["spotted_min_km"], 80.0)
 

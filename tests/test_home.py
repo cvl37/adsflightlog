@@ -4,7 +4,7 @@ import time
 import unittest
 from pathlib import Path
 
-from adsflightlog import fleet, home
+from adsflightlog import fleet, home, owners
 from adsflightlog.db import connect
 from adsflightlog.operators import OperatorResolver
 
@@ -79,6 +79,29 @@ class Home(unittest.TestCase):
         self.assertEqual(reg, {"110001"})
         frn = {r["hex"]: r["status"] for r in fleet.airline_fleet(self.conn, "FRN", NOW)}
         self.assertEqual(frn, {"200001": "confirmed", "200002": "confirmed"})
+
+    def test_registered_operator_comes_first(self):
+        # hexdb.io says the wet-lease belongs to LSE, and the regional jet to BIG.
+        owners.store(self.conn, "300001", {"Registration": None, "OperatorFlagCode": "LSE",
+                                           "RegisteredOwners": "Lease Air"})
+        owners.store(self.conn, "110001", {"OperatorFlagCode": "BIG"})
+        owners.store(self.conn, "200001", None)   # not in hexdb: falls back to the guess
+        home.compute(self.conn, self.r, NOW)
+        self.assertEqual(home.lookup(self.conn, "300001"), (True, "LSE"))
+        self.assertEqual(home.lookup(self.conn, "110001"), (True, "BIG"))
+        self.assertEqual(home.lookup(self.conn, "200001"), (True, "FRN"))
+
+    def test_registered_operator_ignored_after_reregistration(self):
+        self.conn.execute("UPDATE ref_aircraft SET reg='Y-NEW' WHERE hex='200001'")
+        owners.store(self.conn, "200001", {"Registration": "Y-OLD", "OperatorFlagCode": "BIG"})
+        home.compute(self.conn, self.r, NOW)
+        self.assertEqual(home.lookup(self.conn, "200001"), (True, "FRN"))
+
+    def test_next_lookup_prefers_caught_cards(self):
+        self.assertEqual(owners.next_hex(self.conn, NOW), ("200001", True))
+        owners.store(self.conn, "200001", None, NOW)
+        hx, caught = owners.next_hex(self.conn, NOW)
+        self.assertFalse(caught)
 
     def test_override(self):
         self.conn.execute("INSERT INTO home_overrides VALUES ('300001', 'LSE')")

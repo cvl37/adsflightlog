@@ -21,6 +21,7 @@ from . import fleet
 from . import editions
 from .operators import OperatorResolver, fix_military
 from . import home
+from .owners import OwnerFetcher
 
 AIRLINE_CALLSIGN = re.compile(r"^([A-Z]{3})\d")
 
@@ -278,12 +279,22 @@ def main() -> None:
     signal.signal(signal.SIGINT, stop)
 
     col = Collector(cfg, conn, log=lambda m: print(m, flush=True))
+    owners = OwnerFetcher(cfg.database, log=lambda m: print(m, flush=True))
+    owners.start()
+    last_home = time.time()
     last_ref_check = time.time()
     while running:
         try:
             col.poll_once()
         except (OSError, json.JSONDecodeError) as e:
             print(f"collector: read error: {e}", flush=True)
+        if owners.dirty.is_set() and time.time() - last_home > 60:
+            owners.dirty.clear()
+            last_home = time.time()
+            col.spotter.flush()
+            moved = home.compute(conn, resolver)
+            if moved:
+                print(f"collector: {moved} card(s) moved to their home airline", flush=True)
         if time.time() - last_ref_check > 6 * 3600:
             last_ref_check = time.time()
             refdb.update(conn, cfg, log=lambda m: print(m, flush=True))

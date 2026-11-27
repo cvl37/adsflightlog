@@ -6,24 +6,29 @@ wet-leased or chartered aircraft fly for another airline for weeks (a HOP E190
 flying KLM flights). The card and the binder should count it once, for the
 airline it belongs to, not for every airline whose flight number it carried.
 
-For each civil airframe we pick one operator from the airlines it was heard
-flying for (receiver and airport history, last ``WINDOW_DAYS``) plus its
-OpenSky operator, if any:
+For each civil airframe, in this order:
 
-1. Same country first. The ICAO 24-bit address gives the state of registry,
+1. The registered operator from hexdb.io (owners.py), if its registration
+   still matches: YR-ABA -> Carpatair, F-HBLJ -> HOP.
+2. The OpenSky operator, likewise (older data, fewer airframes), if that
+   airline was heard flying at all in the window (OpenSky still lists defunct ones).
+
+Only when neither source knows the airframe, we guess from the airlines it was
+heard flying for (receiver and airport history, last ``WINDOW_DAYS``):
+
+a. Same country first. The ICAO 24-bit address gives the state of registry,
    and aircraft are almost always registered where their operator is based
    (F-HBLJ is French, so it's HOP's, not KLM's).
-2. Among same-country airlines, the one with the smaller fleet wins. When two
+b. Among same-country airlines, the one with the smaller fleet wins. When two
    airlines share an aircraft, the smaller one is usually operating it for the
    bigger brand (KLM Cityhopper for KLM, Transavia for KLM), not the reverse.
-3. No same-country airline: the OpenSky operator, else the one airline it
-   was heard for (foreign-registered fleets are common: Malta Air for Ryanair).
-4. Heard for several airlines, none from its country, no OpenSky operator: a
+c. No same-country airline: the one airline it was heard for (foreign-registered fleets are common: Malta Air for Ryanair).
+d. Heard for several airlines, none from its country: a
    wet-lease (D-AMWO flying for KLM and KLM Cityhopper). It gets no home
    airline and counts for nobody's fleet; ``flying_for`` records who it flies for.
 
 Airlines heard on fewer than ``MIN_SHARE`` of the airframe's days are ignored
-in step 3/4 (a one-off positioning or rescue flight), unless nothing else is left.
+in step c/d (a one-off positioning or rescue flight), unless nothing else is left.
 
 Military aircraft keep the operator from operators.py (it already uses the
 country of registry). ``home_overrides`` holds manual corrections, which win.
@@ -61,21 +66,26 @@ def _table(conn: sqlite3.Connection, name: str) -> bool:
 
 
 def pick(hx: str, heard: dict[str, int], ref_op: str | None, fleet_size: dict[str, int],
-         op_country: dict[str, str], reg_country: str | None) -> tuple[str | None, str]:
-    """Choose the home operator. ``heard`` is {operator: days heard flying for it}."""
+         op_country: dict[str, str], reg_country: str | None,
+         owner: tuple[str, str | None] | None = None) -> tuple[str | None, str]:
+    """Choose the home operator. ``heard`` is {operator: days heard flying for it};
+    ``owner`` is (operator code, owner name) from hexdb.io; ``ref_op`` from OpenSky."""
+    if owner and owner[0] in op_country:
+        return owner[0], f"hexdb.io: {owner[1] or owner[0]}"
+    # OpenSky's export is old: only trust airlines still flying (not Air Berlin).
+    if ref_op and ref_op in op_country and fleet_size.get(ref_op, 0) > 0:
+        return ref_op, "OpenSky operator"
     total = sum(heard.values())
     main = {o: n for o, n in heard.items() if total and n / total >= MIN_SHARE} or dict(heard)
     smaller = lambda ops: min(ops, key=lambda o: (fleet_size.get(o, 0), -heard.get(o, 0), o))
 
     if reg_country:
-        cands = set(heard) | ({ref_op} if ref_op else set())
+        cands = set(heard)
         same = [o for o in cands if op_country.get(o) == reg_country]
         if len(same) == 1:
             return same[0], f"only airline from {reg_country}"
         if same:
             return smaller(same), f"smaller of {', '.join(sorted(same))} ({reg_country})"
-    if ref_op:
-        return ref_op, "OpenSky operator"
     if not main:
         return None, ""
     if len(main) == 1:
@@ -116,14 +126,23 @@ def compute(conn: sqlite3.Connection, resolver: OperatorResolver, now: float | N
             """SELECT f.hex, f.operator FROM ref_fleet f LEFT JOIN ref_aircraft r ON r.hex = f.hex
                WHERE r.reg IS NULL OR f.reg IS NULL
                   OR replace(upper(r.reg), '-', '') = replace(upper(f.reg), '-', '')"""))
+    norm = "replace(upper({}), '-', '')"
+    owners = {}
+    if _table(conn, "ref_owner"):
+        # Skip answers for a previous registration (sold since the lookup).
+        owners = {h: (o, n) for h, o, n in conn.execute(
+            f"""SELECT w.hex, w.operator, w.owner FROM ref_owner w LEFT JOIN ref_aircraft r ON r.hex = w.hex
+                WHERE w.operator IS NOT NULL
+                  AND (r.reg IS NULL OR w.reg IS NULL OR {norm.format('r.reg')} = {norm.format('w.reg')})""")}
     military = {h for (h,) in conn.execute(
         "SELECT hex FROM ref_aircraft WHERE substr(flags, 1, 1) = '1' "
         "UNION SELECT hex FROM airframes WHERE military = 1")}
+    caught = {h for (h,) in conn.execute("SELECT hex FROM airframes")}
     overrides = dict(conn.execute("SELECT hex, operator FROM home_overrides"))
     op_country = {o: c for o, (_, c) in resolver.ops.items()}
 
     rows = []
-    for hx in set(heard) | set(overrides):
+    for hx in set(heard) | set(overrides) | (set(owners) & caught):
         h = heard.get(hx, {})
         top = max(h, key=lambda o: (h[o], o)) if h else None
         if hx in overrides:
@@ -131,7 +150,7 @@ def compute(conn: sqlite3.Connection, resolver: OperatorResolver, now: float | N
             continue
         if hx in military:
             continue
-        op, why = pick(hx, h, ref.get(hx), fleet_size, op_country, resolver.country(hx))
+        op, why = pick(hx, h, ref.get(hx), fleet_size, op_country, resolver.country(hx), owners.get(hx))
         if op or why:
             rows.append((hx, op, top, why, now))
 
