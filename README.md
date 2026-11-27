@@ -112,17 +112,18 @@ after_min = 30
 ## Cards
 
 - **One card per airframe** (ICAO hex), numbered in the order you caught them. Each card carries the series year of its first catch.
-- **Rarity tiers**, from Common to Legendary, are worked out from data. Each card lists its reasons on the back. The rules are in `adsflightlog/rarity.py`.
-  - **Local regularity** is the main signal. It's learned from your receiver: on how many recent days (out of 60) this airline + type was heard, or the type alone for aircraft without an airline callsign. A wide-body that comes to Schiphol daily is common here.
-  - **Worldwide population** is the starting estimate, from the number of registered airframes of the type. For the first days, hearing 3+ different airframes of the same airline + type already marks it as routine. The local signal fully takes over after 7 days of data.
-  - **Bonuses:**
-    - the type is being retired or is out of production (`SUNSET`);
-    - it's the only one of its type in an airline's fleet (claimed only after at least 20 of that airline's aircraft have been confirmed).
-  - **Minimum tiers:**
-    - military aircraft are at least rare;
-    - unidentified aircraft are at least rare;
-    - a special livery is at least epic, and legendary if it's one of a kind;
-    - airframes flagged "interesting", and types with only a handful built, are legendary.
+- **Rarity tiers**, from Common to Legendary, come from a **weighted score**. Each card lists the breakdown on its back. The rules are in `adsflightlog/rarity.py`. Three factors each score 0 (ordinary) to 4 (exceptional):
+
+  | Factor | Default weight | Scores |
+  |---|---|---|
+  | Special livery | 45% | 4 one of a kind, 3 special but shared, 0 none |
+  | Worldwide numbers | 35% | registered airframes of the type: thousands 0 … a handful 4. Retiring or out-of-production types (`SUNSET`) score +1. |
+  | Local regularity | 20% | how often your receiver hears this airline + type: daily 0 … (almost) never 4. For a special livery it's that one aircraft. |
+
+  - The weighted score maps to a tier: common below 0.6, uncommon below 1.25, rare below 1.9, epic below 2.6, legendary from 2.6 up.
+  - Local regularity builds up over `learn_days` (default 28). Until then it's blended with an estimate: having heard several airframes of the type already counts as routine.
+  - Minimum tiers: military and unidentified aircraft are at least rare. Aircraft flagged "interesting", and types with only a handful built, are legendary.
+  - Weights and learning period are set under `[rarity]` in `config.toml`.
 - **Special liveries:**
   - seeded from `adsflightlog/specials.json` (e.g. PH-BVA *Orange Pride*);
   - add your own on the back of a card under "Mark as special livery". They're stored locally, in the `specials` table.
@@ -133,7 +134,7 @@ after_min = 30
   - `squawk …`: an emergency was seen.
   - `military`.
   - `regular`: 10+ sightings.
-  - `special livery`, `retiring`, `fleet one-off`.
+  - `special livery`, `one of a kind`, `retiring`.
 - **Points and collector level**: each card is worth points by rarity, and levels need progressively more points.
 - **Card back** (click a card): full details and sighting history.
 

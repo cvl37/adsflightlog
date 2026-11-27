@@ -34,7 +34,7 @@ const fmtDur = (s) => (s < 60 ? `${Math.round(s)} s` : `${Math.round(s / 60)} mi
 const BADGE_CLASS = (b) =>
   b === "new" ? "new" : b === "1st edition" ? "b1st" : b === "low pass" ? "low" :
   b.startsWith("squawk") ? "sq" : b === "military" ? "mil" : b === "regular" ? "reg" :
-  b === "special livery" ? "spc" : b === "retiring" ? "ret" : b === "fleet one-off" ? "one" : "";
+  b === "special livery" ? "spc" : b === "retiring" ? "ret" : b === "one of a kind" ? "one" : "";
 
 const logoImg = (icao, variant, cls) =>
   `<img class="${cls}" src="/logo/${encodeURIComponent(icao)}/${variant}.svg" alt="" loading="lazy" onerror="this.remove()">`;

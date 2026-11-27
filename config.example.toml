@@ -44,6 +44,14 @@ max_distance_km = 25.0
 before_min = 30
 after_min = 30
 
+[rarity]
+# Weighted rarity score: each factor scores 0-4, weights are normalised to 100%.
+# special = special livery, worldwide = registered airframes of the type,
+# local = how regularly your receiver hears this airline + type.
+weights = { special = 0.45, worldwide = 0.35, local = 0.20 }
+# Days of local data before local regularity fully counts.
+learn_days = 28
+
 [storage]
 database = "data/adsflightlog.db"
 # Type and operator names are read from tar1090's local database.

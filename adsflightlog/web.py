@@ -48,7 +48,8 @@ class App:
         # Rebuilt every 10 minutes (or after a special-livery edit).
         if self._model is None or time.time() - self._model_t > 600:
             with self.conn() as c:
-                self._model = RarityModel(c)
+                self._model = RarityModel(c, weights=self.cfg.rarity_weights,
+                                          learn_days=self.cfg.rarity_learn_days)
             self._model_t = time.time()
         return self._model
 

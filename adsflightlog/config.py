@@ -54,6 +54,8 @@ class Config:
     web_port: int
     track_before_s: float | None = 1800
     track_after_s: float | None = 1800
+    rarity_weights: dict | None = None
+    rarity_learn_days: float = 28
 
     @property
     def tar1090_html(self) -> Path:
@@ -98,6 +100,8 @@ def load(path: str | Path | None = None) -> Config:
         ref_refresh_days=float(sto.get("refresh_days", 7)),
         track_before_s=_minutes(raw.get("tracks", {}).get("before_min", 30)),
         track_after_s=_minutes(raw.get("tracks", {}).get("after_min", 30)),
+        rarity_weights={k: float(v) for k, v in raw.get("rarity", {}).get("weights", {}).items()} or None,
+        rarity_learn_days=float(raw.get("rarity", {}).get("learn_days", 28)),
         web_host=str(web.get("host", "0.0.0.0")),
         web_port=int(web.get("port", 8642)),
     )

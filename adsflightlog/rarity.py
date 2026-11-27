@@ -1,27 +1,24 @@
-"""How rare is this card? Explained, data-driven rarity.
+"""How rare is this card? A weighted, explained score.
 
-The score runs from 0 (common) to 4 (legendary) and blends two signals:
+Three factors each score 0 (ordinary) to 4 (exceptional) and are combined
+with configurable weights (``[rarity]`` in config.toml):
 
-* **Local regularity**: the main signal, learned from your own receiver.
-  On how many of the recent days (``WINDOW_DAYS``) was this airline + type
-  combination heard (or the type, for aircraft without an airline callsign)?
-  An American Airlines 777-200 that comes to Schiphol daily is common here,
-  however few of them exist. The signal's weight grows from 0 to 1 over the
-  first ``CONFIDENT_DAYS`` days of data.
-* **Worldwide population**: the starting estimate while local data is thin.
-  While the local signal is still weak, having already heard 3+ (or 6+)
-  different airframes of the same airline + type also marks it as routine.
-  It is the number of registered airframes of the type in the Mictronics /
-  tar1090 aircraft database.
+* **Special livery** (default 45%): 4 for a one-of-a-kind livery, 3 for a
+  special livery shared by a few aircraft, otherwise 0 (``specials`` table,
+  seeded from specials.json, editable on the card back).
+* **Worldwide numbers** (default 35%): from the number of registered airframes
+  of the type (Mictronics / tar1090 database): thousands = 0, a handful = 4.
+  Types being retired or out of production (``SUNSET``) score one point higher.
+* **Local regularity** (default 20%): learned from your own receiver. On how
+  many of the recent days was this airline + type (or the type, for aircraft
+  without an airline callsign) heard? Daily = 0, (almost) never = 4. Until
+  ``learn_days`` of data exist, it is blended with an estimate: having heard
+  several different airframes of it already marks it as routine; otherwise
+  the worldwide score is used.
 
-Then adjustments:
-
-* type being retired / out of production (``SUNSET``): +0.75
-* the only airframe of its type in that airline's fleet: +1
-* special livery (``specials`` table): at least epic, legendary if one of a kind
-* aircraft flagged military: at least rare
-* unidentified airframe: at least rare
-* "interesting" flag in the database, or a handful-in-the-world type: legendary
+The weighted score (0-4) maps to a tier with ``THRESHOLDS``. Then minimum
+tiers: military and unidentified aircraft are at least rare; aircraft flagged
+"interesting" and types with only a handful built are legendary.
 
 Every card gets a list of human-readable reasons.
 """
@@ -35,11 +32,11 @@ from pathlib import Path
 
 TIERS = ["common", "uncommon", "rare", "epic", "legendary"]
 WINDOW_DAYS = 60
-CONFIDENT_DAYS = 7
-FLEET_CONFIRM_DAYS = 180
-MIN_CONFIRMED_FLEET = 20
+DEFAULT_WEIGHTS = {"special": 0.45, "worldwide": 0.35, "local": 0.20}
+DEFAULT_LEARN_DAYS = 28
+# Upper bounds of the weighted score for common, uncommon, rare, epic.
+THRESHOLDS = (0.6, 1.25, 1.9, 2.6)
 
-# Types with only a handful of airframes, or famous one-offs.
 LEGENDARY_TYPES = {"A124", "A225", "A3ST", "A337", "BLCF", "C5M", "CONC", "B52", "U2"}
 
 # Out of production and/or being retired from passenger service.
@@ -154,36 +151,48 @@ def _abundance(n_airframes: int) -> float | None:
     return None
 
 
-def _local(p: float) -> float:
-    """Tier estimate from the share of days it was heard."""
+def _local(p: float, k: int) -> float:
+    """Local regularity score from the share of days it was heard (p) and days seen (k)."""
     if p >= 0.6:
         return 0.0
     if p >= 0.25:
         return 1.0
     if p >= 0.07:
         return 2.0
-    return 3.0
+    return 3.0 if k > 1 else 4.0
+
+
+def _tier(score: float) -> int:
+    for i, upper in enumerate(THRESHOLDS):
+        if score < upper:
+            return i
+    return 4
 
 
 class RarityModel:
-    def __init__(self, conn: sqlite3.Connection, now: float | None = None):
+    def __init__(self, conn: sqlite3.Connection, now: float | None = None,
+                 weights: dict | None = None, learn_days: float = DEFAULT_LEARN_DAYS):
         now = now or time.time()
+        w = {**DEFAULT_WEIGHTS, **(weights or {})}
+        total = sum(w.values()) or 1.0
+        self.weights = {k: v / total for k, v in w.items()}   # normalised to sum to 1
+        self.learn_days = max(1.0, float(learn_days))
         conn.executescript(SPECIALS_SCHEMA)
         since_day = time.strftime("%Y-%m-%d", time.localtime(now - WINDOW_DAYS * 86400))
         has_days = conn.execute("SELECT 1 FROM sqlite_master WHERE name='spotted_days'").fetchone()
 
-        self.days = 0
+        self.days = 0.0
+        self.n_days = 0
         self.type_days: dict[str, set] = {}
         self.combo_days: dict[tuple, set] = {}
         self.type_air: dict[str, set] = {}
         self.combo_air: dict[tuple, set] = {}
         if has_days:
-            rows = conn.execute(
+            all_days = set()
+            for day, hx, typ, op in conn.execute(
                 """SELECT d.day, d.hex, r.type, d.operator FROM spotted_days d
                    JOIN ref_aircraft r ON r.hex = d.hex WHERE d.day >= ?""", (since_day,)
-            ).fetchall()
-            all_days = set()
-            for day, hx, typ, op in rows:
+            ):
                 all_days.add(day)
                 if typ:
                     self.type_days.setdefault(typ, set()).add(day)
@@ -191,106 +200,99 @@ class RarityModel:
                     if op:
                         self.combo_days.setdefault((op, typ), set()).add(day)
                         self.combo_air.setdefault((op, typ), set()).add(hx)
-            # Today only counts as a fraction until it is over.
-            today = time.strftime("%Y-%m-%d", time.localtime(now))
+            # Today only counts as the part of it that has passed.
             lt = time.localtime(now)
+            today = time.strftime("%Y-%m-%d", lt)
             frac_today = (lt.tm_hour * 3600 + lt.tm_min * 60) / 86400
             self.days = len(all_days - {today}) + (frac_today if today in all_days else 0)
             self.n_days = len(all_days)
-        else:
-            self.n_days = 0
 
         self.population = dict(conn.execute(
             "SELECT type, COUNT(*) FROM ref_aircraft WHERE type IS NOT NULL GROUP BY type"))
-
-        fleet_since = now - FLEET_CONFIRM_DAYS * 86400
-        self.fleet: dict[tuple, int] = {}
-        self.fleet_size: dict[str, int] = {}
-        # Airframes confirmed flying for each operator (heard with its callsign).
-        self.confirmed: dict[str, int] = {}
-        if conn.execute("SELECT 1 FROM sqlite_master WHERE name='spotted_ops'").fetchone():
-            self.confirmed = dict(conn.execute(
-                "SELECT operator, COUNT(DISTINCT hex) FROM spotted_ops WHERE last_seen >= ? GROUP BY operator",
-                (now - FLEET_CONFIRM_DAYS * 86400,)))
-        if conn.execute("SELECT 1 FROM sqlite_master WHERE name='ref_fleet'").fetchone():
-            for op, typ, n in conn.execute(
-                """SELECT operator, type, COUNT(DISTINCT hex) FROM (
-                       SELECT f.operator, f.hex, COALESCE(r.type, f.type) AS type
-                       FROM ref_fleet f LEFT JOIN ref_aircraft r ON r.hex = f.hex
-                       UNION
-                       SELECT o.operator, o.hex, r.type FROM spotted_ops o
-                       JOIN ref_aircraft r ON r.hex = o.hex WHERE o.last_seen >= ?
-                       UNION
-                       SELECT a.operator, a.hex, a.type FROM airframes a WHERE a.operator IS NOT NULL
-                   ) WHERE type IS NOT NULL GROUP BY operator, type""", (fleet_since,)
-            ):
-                self.fleet[(op, typ)] = n
-                self.fleet_size[op] = self.fleet_size.get(op, 0) + n
-
         self.specials = {r[0]: {"title": r[1], "note": r[2], "one_off": bool(r[3]), "source": r[4]}
                          for r in conn.execute("SELECT hex, title, note, one_off, source FROM specials")}
+        # For special liveries regularity is about that one aircraft, not its type.
+        self.hex_days: dict[str, int] = {}
+        if has_days and self.specials:
+            q = ",".join("?" * len(self.specials))
+            self.hex_days = dict(conn.execute(
+                f"SELECT hex, COUNT(*) FROM spotted_days WHERE day >= ? AND hex IN ({q}) GROUP BY hex",
+                (since_day, *self.specials)))
 
     # ------------------------------------------------------------------
     def assess(self, c: dict) -> tuple[str, list[str]]:
         typ, op, desc = c.get("type"), c.get("operator"), c.get("desc")
         reasons: list[str] = []
+        W = self.weights
+        pct = lambda k: f"{round(W[k] * 100)}%"
         type_label = c.get("type_name") or typ or "this type"
         op_label = (c.get("airline") or {}).get("name") or c.get("operator_name") or op
 
-        # Worldwide population prior
-        n = self.population.get(typ, 0) if typ else 0
-        prior = _prior(n, desc) if typ else 2.0
-        if typ:
-            reasons.append(f"{n:,} registered worldwide")
+        # 1. Special livery
+        sp = self.specials.get(c["hex"])
+        s_special = (4.0 if sp["one_off"] else 3.0) if sp else 0.0
+        if sp:
+            reasons.append(f"Special livery ({pct('special')}): {sp['title']}"
+                           + (f": {sp['note']}" if sp.get("note") else "")
+                           + f" → {s_special:g}/4")
 
-        # Local regularity
-        w = min(1.0, self.days / CONFIDENT_DAYS)
-        score = prior
-        if self.n_days and typ:
+        # 2. Worldwide numbers (+1 for types on their way out)
+        n = self.population.get(typ, 0) if typ else 0
+        s_world = _prior(n, desc) if typ else 2.0
+        world_txt = f"{n:,} registered" if typ else "unknown type"
+        if typ in SUNSET:
+            s_world = min(4.0, s_world + 1.0)
+            world_txt += f"; {SUNSET[typ]}"
+        reasons.append(f"Worldwide ({pct('worldwide')}): {world_txt} → {s_world:g}/4")
+
+        # 3. Local regularity, blended with an estimate while still learning
+        conf = min(1.0, self.days / self.learn_days)
+        estimate = s_world
+        local_txt = "nothing heard yet"
+        s_local_raw = None
+        if self.n_days and sp:
+            k = self.hex_days.get(c["hex"], 0)
+            p = min(1.0, k / max(self.days, 1.0))
+            s_local_raw = _local(p, k)
+            estimate = 2.0   # one aircraft: no way to guess its schedule yet
+            local_txt = (f"{c.get('reg') or 'this aircraft'} itself heard on {k} of the last "
+                         f"{self.n_days} day{'s' if self.n_days != 1 else ''}")
+        elif self.n_days and typ:
             key_days = self.combo_days.get((op, typ)) if op else self.type_days.get(typ)
             n_air = len((self.combo_air.get((op, typ)) if op else self.type_air.get(typ)) or ())
             k = len(key_days or ())
             p = min(1.0, k / max(self.days, 1.0))
+            s_local_raw = _local(p, k)
             ab = _abundance(n_air)
             ab_type = _abundance(len(self.type_air.get(typ) or ()))
-            cold = prior
             if ab is not None:
-                cold = min(cold, ab)
+                estimate = min(estimate, ab)
             if ab_type is not None:
-                cold = min(cold, ab_type + 0.5)   # weaker: same type, any airline
-            score = w * _local(p) + (1 - w) * cold
+                estimate = min(estimate, ab_type + 0.5)   # weaker: same type, any airline
             what = f"{op_label} {typ}" if op else type_label
-            reasons.append(f"{what}: heard on {k} of the last {self.n_days} day{'s' if self.n_days != 1 else ''}"
-                           f" ({n_air} different airframe{'s' if n_air != 1 else ''})")
-            if w < 1:
-                reasons.append(f"Still learning local traffic ({self.days:.1f} of {CONFIDENT_DAYS} days)")
+            local_txt = (f"{what} heard on {k} of the last {self.n_days} day{'s' if self.n_days != 1 else ''}"
+                         f" ({n_air} airframe{'s' if n_air != 1 else ''})")
+        s_local = conf * s_local_raw + (1 - conf) * estimate if s_local_raw is not None else estimate
+        learning = f"; still learning ({self.days:.1f} of {self.learn_days:g} days)" if conf < 1 else ""
+        reasons.append(f"Local ({pct('local')}): {local_txt}{learning} → {s_local:.1f}/4")
 
-        # Adjustments
-        if typ in SUNSET:
-            score += 0.75
-            reasons.append(SUNSET[typ])
-        # Only claim "the only one" once we've confirmed a good part of the fleet ourselves.
-        if op and typ and self.fleet.get((op, typ)) == 1 and self.confirmed.get(op, 0) >= MIN_CONFIRMED_FLEET:
-            score += 1.0
-            reasons.append(f"The only {type_label} in {op_label}'s fleet")
+        score = W["special"] * s_special + W["worldwide"] * s_world + W["local"] * s_local
+        tier = _tier(score)
+        reasons.append(f"Score {score:.2f} of 4 → {TIERS[tier]}")
 
-        tier = int(min(4, max(0, score + 0.5)))
-
+        # Minimum tiers
         floors = []
         if c.get("military"):
-            floors.append((2, "Military aircraft"))
+            floors.append((2, "Military aircraft: at least rare"))
         if not typ:
-            floors.append((2, "Unidentified airframe"))
-        sp = self.specials.get(c["hex"])
-        if sp:
-            floors.append((4 if sp["one_off"] else 3,
-                           f"Special livery: {sp['title']}" + (f": {sp['note']}" if sp.get("note") else "")))
+            floors.append((2, "Unidentified airframe: at least rare"))
         if c.get("interesting"):
-            floors.append((4, "Flagged as interesting in the aircraft database"))
+            floors.append((4, "Flagged as interesting in the aircraft database: legendary"))
         if typ in LEGENDARY_TYPES:
-            floors.append((4, "Only a handful exist"))
+            floors.append((4, "Only a handful exist: legendary"))
         for f, why in floors:
-            reasons.append(why)
-            tier = max(tier, f)
+            if f > tier:
+                reasons.append(why)
+                tier = f
 
         return TIERS[tier], reasons

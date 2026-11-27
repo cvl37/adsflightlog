@@ -51,8 +51,8 @@ def build_cards(rows: list[dict], model: RarityModel | None = None, now: float |
             badges.append("special livery")
         if r.get("type") in SUNSET:
             badges.append("retiring")
-        if any(x.startswith("The only ") for x in reasons):
-            badges.append("fleet one-off")
+        if special and special.get("one_off"):
+            badges.append("one of a kind")
         if first_of_type.get(t) == r["card_no"] and t != "?":
             badges.append("1st edition")
         if now - r["first_seen"] < 86400:
