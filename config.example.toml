@@ -1,0 +1,33 @@
+# adsflightlog configuration
+# Copy to config.toml and adjust. config.toml is git-ignored.
+
+[receiver]
+# Receiver location in decimal degrees. Distances are measured from here.
+# If omitted, it is read from readsb's receiver.json (receiver_json below).
+# lat = 52.0000
+# lon = 5.0000
+aircraft_json = "/run/readsb/aircraft.json"
+receiver_json = "/run/readsb/receiver.json"
+
+[collect]
+# Only aircraft whose position is within this distance of the receiver count
+# as a "catch". Anything further away is ignored completely.
+max_distance_km = 25.0
+# Optional ceiling: ignore aircraft above this barometric altitude (feet).
+# Set to 0 to disable.
+max_altitude_ft = 0
+# Ignore positions older than this (seconds) — avoids counting stale tracks.
+max_position_age_s = 15
+# Poll interval for aircraft.json (seconds).
+poll_interval_s = 5
+# A new "sighting" of an already-caught airframe starts after this gap (minutes).
+sighting_gap_min = 20
+
+[storage]
+database = "data/adsflightlog.db"
+# tar1090's offline aircraft database (Mictronics), used for registrations/types.
+tar1090_db_dir = "/usr/local/share/tar1090/git-db/db"
+
+[web]
+host = "0.0.0.0"
+port = 8642

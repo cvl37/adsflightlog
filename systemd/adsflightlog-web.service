@@ -1,0 +1,13 @@
+[Unit]
+Description=ADS Flight Log web UI (card collection)
+After=network.target
+
+[Service]
+User=@USER@
+WorkingDirectory=@DIR@
+ExecStart=/usr/bin/python3 -m adsflightlog.web @DIR@/config.toml
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

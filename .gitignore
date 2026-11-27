@@ -1,0 +1,9 @@
+# Local settings (location, radius) — copy config.example.toml to start
+config.toml
+# Collected data
+data/
+*.db
+*.db-wal
+*.db-shm
+__pycache__/
+*.pyc

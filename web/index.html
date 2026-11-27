@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADS Flight Log — Collection</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">◎</span>
+    <div>
+      <h1>ADS Flight Log</h1>
+      <p class="sub" id="radius-line">—</p>
+    </div>
+  </div>
+  <div class="level">
+    <div class="level-row"><span>Collector level <b id="level">1</b></span><span id="score">0 pts</span></div>
+    <div class="bar"><div id="level-bar"></div></div>
+  </div>
+</header>
+
+<section class="stats" id="stats"></section>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="binder" class="active">Binder</button>
+  <button role="tab" data-tab="dex">Type dex</button>
+  <button role="tab" data-tab="airlines">Airlines</button>
+  <button role="tab" data-tab="live">In range now <span id="live-count" class="pill">0</span></button>
+</nav>
+
+<main>
+  <section id="binder" class="panel active">
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Search reg, type, airline, callsign…">
+      <select id="rarity-filter">
+        <option value="">All rarities</option>
+        <option value="legendary">Legendary</option>
+        <option value="epic">Epic</option>
+        <option value="rare">Rare</option>
+        <option value="uncommon">Uncommon</option>
+        <option value="common">Common</option>
+      </select>
+      <select id="sort">
+        <option value="newest">Newest catches</option>
+        <option value="number">Card number</option>
+        <option value="rarity">Rarity</option>
+        <option value="closest">Closest pass</option>
+        <option value="sightings">Most sightings</option>
+      </select>
+    </div>
+    <div id="cards" class="grid"></div>
+    <p id="empty" class="empty" hidden>No cards yet. Leave the collector running: every aircraft that flies inside your radius becomes a card.</p>
+  </section>
+
+  <section id="dex" class="panel">
+    <p class="hint">Every aircraft type you've caught. Collect more airframes of a type to level up its entry.</p>
+    <div id="dex-grid" class="dex"></div>
+  </section>
+
+  <section id="airlines" class="panel">
+    <div id="airline-list" class="airlines"></div>
+  </section>
+
+  <section id="live" class="panel">
+    <p class="hint" id="live-hint"></p>
+    <table class="live">
+      <thead><tr><th>Callsign</th><th>Hex</th><th>Distance</th><th>Altitude</th><th>Speed</th><th></th></tr></thead>
+      <tbody id="live-body"></tbody>
+    </table>
+  </section>
+</main>
+
+<div id="modal" class="modal" hidden>
+  <div class="modal-inner">
+    <button class="close" aria-label="Close">×</button>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
