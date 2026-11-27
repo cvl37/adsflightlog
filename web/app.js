@@ -35,15 +35,21 @@ const BADGE_CLASS = (b) =>
   b === "new" ? "new" : b === "1st edition" ? "b1st" : b === "low pass" ? "low" :
   b.startsWith("squawk") ? "sq" : b === "military" ? "mil" : b === "regular" ? "reg" : "";
 
+const logoImg = (icao, variant, cls) =>
+  `<img class="${cls}" src="/logo/${encodeURIComponent(icao)}/${variant}.svg" alt="" loading="lazy" onerror="this.remove()">`;
+
 function cardHTML(c) {
   const title = c.reg || c.last_callsign || c.hex.toUpperCase();
   const model = c.type_name || c.model || (c.type ? c.type : "Unidentified airframe");
-  const op = c.operator_name || (c.operator ? c.operator : c.last_callsign && c.last_callsign !== c.reg ? c.last_callsign : "Private / unknown operator");
+  const al = c.airline;
+  const brand = al && al.color ? `;--brand:${esc(al.color)}` : "";
+  const chip = al && al.icon ? `<span class="chip">${logoImg(c.operator, "icon", "")}</span>` : "";
+  const op = (al && al.name) || c.operator_name || (c.operator ? c.operator : c.last_callsign && c.last_callsign !== c.reg ? c.last_callsign : "Private / unknown operator");
   return `
-  <article class="card ${c.rarity}" style="--hue:${hue(c.operator || c.type)}" data-hex="${esc(c.hex)}" tabindex="0">
+  <article class="card ${c.rarity}" style="--hue:${hue(c.operator || c.type)}${brand}" data-hex="${esc(c.hex)}" tabindex="0">
     <div class="card-inner">
       <div class="card-head"><span>#${String(c.card_no).padStart(3, "0")} · ${esc(c.series)} SERIES</span><span class="pts">${c.points} PTS</span></div>
-      <div class="art">${svg(c.art)}<span class="tail">${esc(c.type || "????")}</span></div>
+      <div class="art${brand ? " branded" : ""}">${chip}${svg(c.art)}<span class="tail">${esc(c.type || "????")}</span></div>
       <div class="plate">
         <div class="reg">${esc(title)}</div>
         <div class="model">${esc(model)}</div>
@@ -122,10 +128,12 @@ async function renderAirlines() {
   const ops = await api("/api/operators");
   $("#airline-list").innerHTML = ops.map((o) => `
     <div class="airline">
-      <div class="crest" style="background:hsl(${hue(o.icao)} 55% 40%)">${esc(o.icao)}</div>
+      ${o.airline && o.airline.icon
+        ? `<div class="crest logo" style="--brand:${esc(o.airline.color || "#fff")}">${logoImg(o.icao, "icon", "")}<span>${esc(o.icao)}</span></div>`
+        : `<div class="crest" style="background:hsl(${hue(o.icao)} 55% 40%)">${esc(o.icao)}</div>`}
       <div>
-        <div class="nm">${esc(o.name || o.icao)}</div>
-        <div class="meta">${esc(o.country || "")}${o.callsign ? ` · “${esc(o.callsign)}”` : ""}</div>
+        <div class="nm">${esc((o.airline && o.airline.name) || o.name || o.icao)}</div>
+        <div class="meta">${o.airline && o.airline.parent ? `${esc(o.airline.parent)} group · ` : ""}${esc(o.country || "")}${o.callsign ? ` · “${esc(o.callsign)}”` : ""}${o.airline && o.airline.alliance ? ` · ${esc(o.airline.alliance)}` : ""}</div>
         <div class="meta">${o.count} airframe${o.count === 1 ? "" : "s"} · ${o.types.map(esc).join(", ")}</div>
       </div>
     </div>`).join("") || `<p class="empty">No airline flights caught yet.</p>`;
@@ -157,12 +165,13 @@ async function openCard(hex) {
     <div class="detail">
       <div>${cardHTML(c)}</div>
       <div class="back">
+        ${c.airline && c.airline.logo ? `<div class="logo-plate">${logoImg(c.operator, "logo", "logo-full")}</div>` : ""}
         <h2>${esc(c.reg || c.hex.toUpperCase())}</h2>
         <div class="muted">${esc(c.model || c.type_name || "Unidentified airframe")}</div>
         <dl class="facts">
           <dt>ICAO hex</dt><dd><code>${esc(c.hex)}</code></dd>
           <dt>Type</dt><dd>${esc(c.type || "—")}${c.desc ? ` (${esc(c.desc)}, wake ${esc(c.wtc || "?")})` : ""}</dd>
-          <dt>Operator</dt><dd>${esc(c.operator_name || c.operator || "—")}${c.operator_country ? `, ${esc(c.operator_country)}` : ""}</dd>
+          <dt>Operator</dt><dd>${esc((c.airline && c.airline.name) || c.operator_name || c.operator || "—")}${c.operator_country ? `, ${esc(c.operator_country)}` : ""}${c.airline && c.airline.alliance ? ` · ${esc(c.airline.alliance)}` : ""}</dd>
           <dt>First caught</dt><dd>${fmtTime(c.first_seen)}</dd>
           <dt>Last seen</dt><dd>${fmtTime(c.last_seen)}</dd>
           <dt>Closest pass</dt><dd>${fmtKm(c.closest_km)} km at ${fmtAlt(c.closest_alt_ft)} ft</dd>

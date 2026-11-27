@@ -17,6 +17,7 @@ from . import config as cfgmod
 from .cards import POINTS, TIERS, build_cards
 from .collector import altitude, in_range
 from .db import connect
+from .logos import Logos
 
 STATIC = cfgmod.ROOT / "web"
 
@@ -32,6 +33,7 @@ LEFT JOIN ref_operators o ON o.icao = a.operator
 class App:
     def __init__(self, cfg: cfgmod.Config):
         self.cfg = cfg
+        self.logos = Logos(cfg.database.parent, cfg.ref_refresh_days)
 
     def conn(self):
         return connect(self.cfg.database)
@@ -39,6 +41,8 @@ class App:
     def cards(self) -> list[dict]:
         with self.conn() as c:
             rows = [dict(r) for r in c.execute(CARD_SQL + " ORDER BY a.card_no")]
+        for r in rows:
+            r["airline"] = self.logos.info(r["operator"])
         return build_cards(rows)
 
     def summary(self) -> dict:
@@ -111,7 +115,7 @@ class App:
             e = out.setdefault(c["operator"], {
                 "icao": c["operator"], "name": c.get("operator_name"),
                 "country": c.get("operator_country"), "callsign": c.get("operator_callsign"),
-                "count": 0, "types": set(),
+                "count": 0, "types": set(), "airline": c.get("airline"),
             })
             e["count"] += 1
             if c["type"]:
@@ -175,6 +179,25 @@ def make_handler(app: App):
                     return self._json(app.operators())
                 if p == "/api/live":
                     return self._json(app.live())
+                if p.startswith("/logo/"):
+                    # /logo/<ICAO>/<variant>.svg — cached Soaring Symbols mark
+                    parts = p.split("/")
+                    if len(parts) == 4 and parts[3].endswith(".svg"):
+                        body = app.logos.svg(parts[2], parts[3][:-4])
+                        if body:
+                            self.send_response(200)
+                            self.send_header("Content-Type", "image/svg+xml")
+                            # Third-party SVG: never let it run script on our origin.
+                            self.send_header("Content-Security-Policy",
+                                             "default-src 'none'; style-src 'unsafe-inline'")
+                            self.send_header("X-Content-Type-Options", "nosniff")
+                            self.send_header("Cache-Control", "public, max-age=604800")
+                            self.send_header("Content-Length", str(len(body)))
+                            self.end_headers()
+                            self.wfile.write(body)
+                            return
+                    self.send_error(404)
+                    return
             except Exception as e:  # noqa: BLE001 — surface errors to the UI
                 return self._json({"error": str(e)}, 500)
 

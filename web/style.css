@@ -197,3 +197,26 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 /* ---------- live ---------- */
 .live .yes { color: var(--uncommon); }
 .live .catch { color: var(--accent); font-weight: 700; }
+
+/* ---------- airline marks (Soaring Symbols) ---------- */
+.art.branded {
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in oklab, var(--brand) 55%, #fff), transparent 60%),
+    linear-gradient(180deg, color-mix(in oklab, var(--brand) 85%, #fff), color-mix(in oklab, var(--brand) 60%, #000));
+}
+.chip {
+  position: absolute; top: 6px; left: 6px; width: 34px; height: 34px; border-radius: 50%;
+  background: #fff; display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0,0,0,.35); z-index: 1;
+}
+.chip img { width: 24px; height: 24px; object-fit: contain; }
+.chip:not(:has(img)) { display: none; }
+.logo-plate { background: #fff; border-radius: 10px; padding: 12px 16px; display: inline-block; margin-bottom: 12px; }
+.logo-plate:not(:has(img)) { display: none; }
+.logo-full { height: 40px; width: 240px; object-fit: contain; object-position: left center; display: block; }
+.crest.logo { background: #fff; position: relative; border-bottom: 4px solid var(--brand); }
+.crest.logo img { width: 32px; height: 32px; object-fit: contain; }
+.crest.logo span { display: none; }
+.crest.logo:not(:has(img)) { background: hsl(210 30% 35%); }
+.crest.logo:not(:has(img)) span { display: inline; }
+.credit { color: var(--muted); font-size: 12px; padding: 0 28px 28px; }
+.credit a { color: inherit; }
