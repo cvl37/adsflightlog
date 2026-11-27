@@ -50,6 +50,14 @@ CREATE TABLE IF NOT EXISTS spotted_ops (
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS spotted_ops_op ON spotted_ops(operator, last_seen);
 
+-- One row per airframe per local day it was heard: drives "how regular is it here".
+CREATE TABLE IF NOT EXISTS spotted_days (
+    day      TEXT NOT NULL,       -- YYYY-MM-DD, local time
+    hex      TEXT NOT NULL,
+    operator TEXT,
+    PRIMARY KEY (day, hex)
+) WITHOUT ROWID;
+
 CREATE TABLE IF NOT EXISTS ref_fleet (
     hex      TEXT PRIMARY KEY,
     operator TEXT NOT NULL,
@@ -91,6 +99,7 @@ class Spotter:
         conn.executescript(SCHEMA)
         self.seen: dict[str, list] = {}               # hex -> [first, last, min_dist]
         self.ops: dict[tuple[str, str], list] = {}    # (hex, op) -> [first, last]
+        self.days: dict[tuple[str, str], str | None] = {}  # (day, hex) -> operator
         self.last_flush = time.time()
 
     def observe(self, hx: str, t: float, dist_km: float | None, operator: str | None) -> None:
@@ -102,6 +111,9 @@ class Spotter:
             s[1] = t
             if dist_km is not None and (s[2] is None or dist_km < s[2]):
                 s[2] = dist_km
+        dk = (time.strftime("%Y-%m-%d", time.localtime(t)), hx)
+        if operator or dk not in self.days:
+            self.days[dk] = operator
         if operator:
             k = (hx, operator)
             o = self.ops.get(k)
@@ -116,7 +128,7 @@ class Spotter:
             self.last_flush = now
 
     def flush(self) -> None:
-        if not self.seen and not self.ops:
+        if not self.seen and not self.ops and not self.days:
             return
         with self.conn:
             self.conn.executemany(
@@ -133,8 +145,32 @@ class Spotter:
                      last_seen = MAX(last_seen, excluded.last_seen)""",
                 [(h, op, f, l) for (h, op), (f, l) in self.ops.items()],
             )
+            self.conn.executemany(
+                """INSERT INTO spotted_days VALUES (?,?,?)
+                   ON CONFLICT(day, hex) DO UPDATE SET operator = COALESCE(excluded.operator, operator)""",
+                [(d, h, op) for (d, h), op in self.days.items()],
+            )
+            cutoff = time.strftime("%Y-%m-%d", time.localtime(time.time() - 120 * 86400))
+            self.conn.execute("DELETE FROM spotted_days WHERE day < ?", (cutoff,))
         self.seen.clear()
         self.ops.clear()
+        self.days.clear()
+
+
+def backfill_days(conn: sqlite3.Connection) -> None:
+    """Seed spotted_days from data logged before it existed (one-off, idempotent)."""
+    conn.executescript(SCHEMA)
+    with conn:
+        conn.execute(
+            """INSERT OR IGNORE INTO spotted_days
+               SELECT date(o.last_seen, 'unixepoch', 'localtime'), o.hex, o.operator FROM spotted_ops o""")
+        conn.execute(
+            """INSERT OR IGNORE INTO spotted_days
+               SELECT date(s.last_seen, 'unixepoch', 'localtime'), s.hex, NULL FROM spotted s""")
+        conn.execute(
+            """INSERT OR IGNORE INTO spotted_days
+               SELECT date(s.start, 'unixepoch', 'localtime'), s.hex, a.operator
+               FROM sightings s JOIN airframes a ON a.hex = s.hex""")
 
 
 # ---------------------------------------------------------------- OpenSky seed

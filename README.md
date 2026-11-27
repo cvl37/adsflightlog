@@ -112,13 +112,20 @@ after_min = 30
 ## Cards
 
 - **One card per airframe** (ICAO hex), numbered in the order you caught them. Each card carries the series year of its first catch.
-- **Rarity tiers**, from Common to Legendary:
-  - Common: everyday narrow-bodies and regional aircraft.
-  - Uncommon: wide-bodies, business jets and GA.
-  - Rare: helicopters, older types, unidentified airframes.
-  - Epic: military aircraft and four-engine jets.
-  - Legendary: airframes flagged "interesting" in the database, and true oddballs (An-124, Beluga, ...).
-  - Once you have 100+ cards, a type you've only caught once is bumped up one tier.
+- **Rarity tiers**, from Common to Legendary, are worked out from data. Each card lists its reasons on the back. The rules are in `adsflightlog/rarity.py`.
+  - **Local regularity** is the main signal. It's learned from your receiver: on how many recent days (out of 60) this airline + type was heard, or the type alone for aircraft without an airline callsign. A wide-body that comes to Schiphol daily is common here.
+  - **Worldwide population** is the starting estimate, from the number of registered airframes of the type. For the first days, hearing 3+ different airframes of the same airline + type already marks it as routine. The local signal fully takes over after 7 days of data.
+  - **Bonuses:**
+    - the type is being retired or is out of production (`SUNSET`);
+    - it's the only one of its type in an airline's fleet (claimed only after at least 20 of that airline's aircraft have been confirmed).
+  - **Minimum tiers:**
+    - military aircraft are at least rare;
+    - unidentified aircraft are at least rare;
+    - a special livery is at least epic, and legendary if it's one of a kind;
+    - airframes flagged "interesting", and types with only a handful built, are legendary.
+- **Special liveries:**
+  - seeded from `adsflightlog/specials.json` (e.g. PH-BVA *Orange Pride*);
+  - add your own on the back of a card under "Mark as special livery". They're stored locally, in the `specials` table.
 - **Badges**:
   - `1st edition`: your first airframe of that type.
   - `new`: caught in the last 24 h.
@@ -126,6 +133,7 @@ after_min = 30
   - `squawk …`: an emergency was seen.
   - `military`.
   - `regular`: 10+ sightings.
+  - `special livery`, `retiring`, `fleet one-off`.
 - **Points and collector level**: each card is worth points by rarity, and levels need progressively more points.
 - **Card back** (click a card): full details and sighting history.
 

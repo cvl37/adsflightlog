@@ -247,6 +247,9 @@ def main() -> None:
     refdb.update(conn, cfg, log=lambda m: print(m, flush=True))
     fleet.update_opensky(conn, log=lambda m: print(m, flush=True))
 
+    fleet.backfill_days(conn)
+    from .rarity import load_seed_specials
+    load_seed_specials(conn)
     fixed = fix_military(conn, OperatorResolver(conn, cfg.tar1090_html))
     if fixed:
         print(f"collector: corrected operator on {fixed} military record(s)", flush=True)

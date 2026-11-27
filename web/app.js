@@ -33,7 +33,8 @@ const fmtDur = (s) => (s < 60 ? `${Math.round(s)} s` : `${Math.round(s / 60)} mi
 
 const BADGE_CLASS = (b) =>
   b === "new" ? "new" : b === "1st edition" ? "b1st" : b === "low pass" ? "low" :
-  b.startsWith("squawk") ? "sq" : b === "military" ? "mil" : b === "regular" ? "reg" : "";
+  b.startsWith("squawk") ? "sq" : b === "military" ? "mil" : b === "regular" ? "reg" :
+  b === "special livery" ? "spc" : b === "retiring" ? "ret" : b === "fleet one-off" ? "one" : "";
 
 const logoImg = (icao, variant, cls) =>
   `<img class="${cls}" src="/logo/${encodeURIComponent(icao)}/${variant}.svg" alt="" loading="lazy" onerror="this.remove()">`;
@@ -49,7 +50,7 @@ function cardHTML(c) {
   <article class="card ${c.rarity}" style="--hue:${hue(c.operator || c.type)}${brand}" data-hex="${esc(c.hex)}" tabindex="0">
     <div class="card-inner">
       <div class="card-head"><span>#${String(c.card_no).padStart(3, "0")} · ${esc(c.series)} SERIES</span><span class="pts">${c.points} PTS</span></div>
-      <div class="art${brand ? " branded" : ""}">${chip}${svg(c.art)}<span class="tail">${esc(c.type || "????")}</span></div>
+      <div class="art${brand ? " branded" : ""}">${chip}${svg(c.art)}${c.special ? `<span class="special-tag">★ ${esc(c.special.title)}</span>` : ""}<span class="tail">${esc(c.type || "????")}</span></div>
       <div class="plate">
         <div class="reg">${esc(title)}</div>
         <div class="model">${esc(model)}</div>
@@ -181,6 +182,17 @@ async function openCard(hex) {
           <dt>Type in binder</dt><dd>${c.type_count} airframe${c.type_count === 1 ? "" : "s"}</dd>
           <dt>Value</dt><dd>${c.points} pts · ${c.rarity}</dd>
         </dl>
+        <h3>Why it's ${esc(c.rarity)}</h3>
+        <ul class="reasons">${(c.rarity_reasons || []).map((r) => `<li>${esc(r)}</li>`).join("")}</ul>
+        <details class="special-edit" ${c.special ? "" : ""}>
+          <summary>${c.special ? "Edit special livery" : "Mark as special livery"}</summary>
+          <form id="special-form">
+            <input name="title" maxlength="80" placeholder="Livery name, e.g. Orange Pride" value="${esc(c.special ? c.special.title : "")}">
+            <textarea name="note" maxlength="500" rows="2" placeholder="What makes it special?">${esc(c.special && c.special.note ? c.special.note : "")}</textarea>
+            <label><input type="checkbox" name="one_off" ${!c.special || c.special.one_off ? "checked" : ""}> The only one like it (legendary; otherwise epic)</label>
+            <div class="row"><button type="submit">Save</button>${c.special ? `<button type="button" id="special-remove">Remove</button>` : ""}</div>
+          </form>
+        </details>
         <h3>Flight path</h3>
         <div id="track-map" class="track-map"></div>
         <div id="track-info" class="track-info"></div>
@@ -194,6 +206,20 @@ async function openCard(hex) {
   $("#modal-body").scrollTop = 0;
   $(".modal-inner").scrollTop = 0;
   setupMap();
+  const sf = $("#special-form");
+  const saveSpecial = async (payload) => {
+    await fetch(`/api/card/${hex}/special`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    await refresh();
+    openCard(hex);
+  };
+  sf.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const f = new FormData(sf);
+    saveSpecial({ title: f.get("title"), note: f.get("note"), one_off: f.get("one_off") === "on" });
+  });
+  $("#special-remove")?.addEventListener("click", () => saveSpecial({ title: "" }));
   $("#modal-body .sightings").addEventListener("click", (e) => {
     const tr = e.target.closest("tr.has-track");
     if (tr) showTrack(+tr.dataset.sid);

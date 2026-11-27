@@ -20,6 +20,7 @@ from .collector import altitude, in_range
 from .db import connect
 from .logos import Logos
 from .operators import OperatorResolver
+from .rarity import RarityModel, SPECIALS_SCHEMA, load_seed_specials
 from . import tracks
 from . import fleet
 
@@ -39,6 +40,32 @@ class App:
         self.cfg = cfg
         self.logos = Logos(cfg.database.parent, cfg.ref_refresh_days)
         self.resolver = OperatorResolver(self.conn(), cfg.tar1090_html)
+        load_seed_specials(self.conn())
+        self._model: RarityModel | None = None
+        self._model_t = 0.0
+
+    def model(self) -> RarityModel:
+        # Rebuilt every 10 minutes (or after a special-livery edit).
+        if self._model is None or time.time() - self._model_t > 600:
+            with self.conn() as c:
+                self._model = RarityModel(c)
+            self._model_t = time.time()
+        return self._model
+
+    def set_special(self, hx: str, title: str | None, note: str | None, one_off: bool) -> None:
+        with self.conn() as c:
+            c.executescript(SPECIALS_SCHEMA)
+            if title:
+                reg = c.execute("SELECT reg FROM airframes WHERE hex=?", (hx,)).fetchone()
+                c.execute(
+                    """INSERT INTO specials (hex, reg, title, note, one_off, source, added)
+                       VALUES (?,?,?,?,?,'user',?)
+                       ON CONFLICT(hex) DO UPDATE SET title=excluded.title, note=excluded.note,
+                         one_off=excluded.one_off, source='user'""",
+                    (hx, reg[0] if reg else None, title, note, int(one_off), time.time()))
+            else:
+                c.execute("DELETE FROM specials WHERE hex=?", (hx,))
+        self._model = None
 
     def conn(self):
         c = connect(self.cfg.database)
@@ -52,7 +79,7 @@ class App:
         for r in rows:
             r["airline"] = self.logos.info(r["operator"])
             r["country"] = self.resolver.country(r["hex"])
-        return build_cards(rows)
+        return build_cards(rows, self.model())
 
     def summary(self) -> dict:
         cards = self.cards()
@@ -387,6 +414,17 @@ def make_handler(app: App):
             self.wfile.write(body)
 
         def do_POST(self):
+            ms = re.fullmatch(r"/api/card/([0-9a-fA-F]{6})/special", urlparse(self.path).path)
+            if ms:
+                try:
+                    n = int(self.headers.get("Content-Length") or 0)
+                    body = json.loads(self.rfile.read(min(n, 8192)) or b"{}")
+                    title = str(body.get("title") or "").strip()[:80] or None
+                    note = str(body.get("note") or "").strip()[:500] or None
+                    app.set_special(ms.group(1).lower(), title, note, bool(body.get("one_off", True)))
+                    return self._json({"ok": True})
+                except (ValueError, json.JSONDecodeError) as e:
+                    return self._json({"error": str(e)}, 400)
             m = re.fullmatch(r"/api/binder/airline/([A-Za-z]{3})/hide", urlparse(self.path).path)
             if not m:
                 self.send_error(404)
