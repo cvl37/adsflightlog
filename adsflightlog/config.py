@@ -55,6 +55,11 @@ class Config:
     track_before_s: float | None = 1800
     track_after_s: float | None = 1800
 
+    @property
+    def tar1090_html(self) -> Path:
+        """tar1090's web root (has the ICAO address -> country table)."""
+        return self.tar1090_db_dir.parents[1] / "html"
+
 
 def load(path: str | Path | None = None) -> Config:
     path = Path(path) if path else ROOT / "config.toml"

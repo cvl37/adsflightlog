@@ -19,6 +19,7 @@ from .cards import POINTS, TIERS, build_cards
 from .collector import altitude, in_range
 from .db import connect
 from .logos import Logos
+from .operators import OperatorResolver
 from . import tracks
 from . import fleet
 
@@ -37,6 +38,7 @@ class App:
     def __init__(self, cfg: cfgmod.Config):
         self.cfg = cfg
         self.logos = Logos(cfg.database.parent, cfg.ref_refresh_days)
+        self.resolver = OperatorResolver(self.conn(), cfg.tar1090_html)
 
     def conn(self):
         c = connect(self.cfg.database)
@@ -49,6 +51,7 @@ class App:
             rows = [dict(r) for r in c.execute(CARD_SQL + " ORDER BY a.card_no")]
         for r in rows:
             r["airline"] = self.logos.info(r["operator"])
+            r["country"] = self.resolver.country(r["hex"])
         return build_cards(rows)
 
     def summary(self) -> dict:

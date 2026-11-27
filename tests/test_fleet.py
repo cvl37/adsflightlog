@@ -32,8 +32,8 @@ class Fleet(unittest.TestCase):
         c.execute("INSERT INTO airframes (hex, card_no, reg, type, operator, first_seen, last_seen) "
                   "VALUES ('000001', 1, 'XX-AAA', 'B738', 'TST', ?, ?)", (NOW, NOW))
         sp = fleet.Spotter(c)
-        sp.observe("000006", NOW - 3600, 80.0, "TST123")
-        sp.observe("000005", NOW - 3600, 120.0, "OTH456")
+        sp.observe("000006", NOW - 3600, 80.0, "TST")
+        sp.observe("000005", NOW - 3600, 120.0, "OTH")
         sp.flush()
 
     def test_membership(self):

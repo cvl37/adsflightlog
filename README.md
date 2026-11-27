@@ -61,6 +61,16 @@ Changes to the zones apply from then on. Cards you already collected stay in you
 
 Run the zone geometry tests with `python3 -m unittest discover -s tests -t .`.
 
+## Operators
+
+A card's operator normally comes from the callsign's ICAO airline prefix (`KLM1234` → KLM). Military and state aircraft often fly under mission callsigns instead (for example `OSY` for Open Skies Treaty flights), so for aircraft flagged military:
+
+1. The country is looked up from the aircraft's 24-bit address block, using tar1090's ICAO allocation table.
+2. A callsign operator is only accepted if it is that same country's military, so a German Army callsign on a German airframe stays "German Army".
+3. Otherwise the country's main air arm is used (`DEFAULT_MIL` in `adsflightlog/operators.py`). If none is known, the card shows "\<country\> military".
+
+Mission callsigns (`MISSION_CALLSIGNS`) are never used as an operator, for any aircraft.
+
 ## Binder pages: fleets, manufacturers and types
 
 Besides the **All cards** view, the binder has pages per **airline/operator**, **manufacturer** and **aircraft type**. You only get pages you hold at least one card for. Each page shows your cards plus an **empty sleeve** for every airframe you could still catch, with a progress bar.

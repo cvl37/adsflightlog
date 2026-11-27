@@ -18,6 +18,7 @@ from .db import connect
 from . import refdb
 from .tracks import Tracker
 from . import fleet
+from .operators import OperatorResolver, fix_military
 
 AIRLINE_CALLSIGN = re.compile(r"^([A-Z]{3})\d")
 
@@ -106,6 +107,15 @@ class Collector:
         self.log = log
         self.tracker = Tracker(conn, cfg.track_before_s, cfg.track_after_s, log=log)
         self.spotter = fleet.Spotter(conn)
+        self.resolver = OperatorResolver(conn, cfg.tar1090_html)
+        self._military: dict[str, bool] = {}
+
+    def is_military(self, hx: str, ac: dict) -> bool:
+        if hx not in self._military:
+            ref = self.conn.execute("SELECT flags FROM ref_aircraft WHERE hex=?", (hx,)).fetchone()
+            flags = (ref[0] if ref else "") or ""
+            self._military[hx] = flags[:1] == "1" or bool(int(ac.get("dbFlags", 0) or 0) & 1)
+        return self._military[hx]
 
     def poll_once(self, now: float | None = None) -> int:
         data = json.loads(self.cfg.aircraft_json.read_text())
@@ -119,10 +129,11 @@ class Collector:
                 fresh = "lat" in ac and ac.get("seen_pos", 0) <= self.cfg.max_position_age_s
                 if ac.get("seen", 0) <= 60:
                     # Fleet/spotting log: every aircraft heard, at any distance.
+                    cs = (ac.get("flight") or "").strip() or None
                     self.spotter.observe(
                         hx, now,
                         haversine_km(self.cfg.lat, self.cfg.lon, ac["lat"], ac["lon"]) if fresh else None,
-                        (ac.get("flight") or "").strip() or None,
+                        self.resolver.resolve(hx, cs, self.is_military(hx, ac)) if cs else None,
                     )
                 if not fresh:
                     continue
@@ -147,12 +158,7 @@ class Collector:
         gs = ac.get("gs")
         emergency = ac.get("emergency")
         emergency = emergency if emergency and emergency != "none" else None
-        m = AIRLINE_CALLSIGN.match(callsign or "")
-        operator = m.group(1) if m else None
-        if operator and not c.execute(
-            "SELECT 1 FROM ref_operators WHERE icao=?", (operator,)
-        ).fetchone():
-            operator = None
+        operator = self.resolver.resolve(hx, callsign, self.is_military(hx, ac))
 
         row = c.execute("SELECT * FROM airframes WHERE hex=?", (hx,)).fetchone()
         if row is None:
@@ -240,6 +246,10 @@ def main() -> None:
     conn = connect(cfg.database)
     refdb.update(conn, cfg, log=lambda m: print(m, flush=True))
     fleet.update_opensky(conn, log=lambda m: print(m, flush=True))
+
+    fixed = fix_military(conn, OperatorResolver(conn, cfg.tar1090_html))
+    if fixed:
+        print(f"collector: corrected operator on {fixed} military record(s)", flush=True)
 
     print(f"collector: receiver {cfg.lat:.4f},{cfg.lon:.4f}; zones: "
           + "; ".join(f"{z.name} ({z.describe()})" for z in cfg.zones), flush=True)

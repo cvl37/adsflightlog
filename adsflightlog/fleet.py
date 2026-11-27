@@ -93,7 +93,8 @@ class Spotter:
         self.ops: dict[tuple[str, str], list] = {}    # (hex, op) -> [first, last]
         self.last_flush = time.time()
 
-    def observe(self, hx: str, t: float, dist_km: float | None, callsign: str | None) -> None:
+    def observe(self, hx: str, t: float, dist_km: float | None, operator: str | None) -> None:
+        """``operator`` is the already-resolved operator code (see operators.py), or None."""
         s = self.seen.get(hx)
         if s is None:
             self.seen[hx] = [t, t, dist_km]
@@ -101,9 +102,8 @@ class Spotter:
             s[1] = t
             if dist_km is not None and (s[2] is None or dist_km < s[2]):
                 s[2] = dist_km
-        m = AIRLINE_CALLSIGN.match(callsign or "")
-        if m:
-            k = (hx, m.group(1))
+        if operator:
+            k = (hx, operator)
             o = self.ops.get(k)
             if o is None:
                 self.ops[k] = [t, t]

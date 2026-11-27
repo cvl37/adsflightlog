@@ -44,7 +44,7 @@ function cardHTML(c) {
   const al = c.airline;
   const brand = al && al.color ? `;--brand:${esc(al.color)}` : "";
   const chip = al && al.icon ? `<span class="chip">${logoImg(c.operator, "icon", "")}</span>` : "";
-  const op = (al && al.name) || c.operator_name || (c.operator ? c.operator : c.last_callsign && c.last_callsign !== c.reg ? c.last_callsign : "Private / unknown operator");
+  const op = (al && al.name) || c.operator_name || (c.military && c.country ? `${c.country} military` : "") || (c.operator ? c.operator : c.last_callsign && c.last_callsign !== c.reg ? c.last_callsign : "Private / unknown operator");
   return `
   <article class="card ${c.rarity}" style="--hue:${hue(c.operator || c.type)}${brand}" data-hex="${esc(c.hex)}" tabindex="0">
     <div class="card-inner">
