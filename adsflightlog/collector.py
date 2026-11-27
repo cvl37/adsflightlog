@@ -15,7 +15,7 @@ import time
 
 from . import config as cfgmod
 from .db import connect
-from .refdb import import_refs, needs_import
+from . import refdb
 
 AIRLINE_CALLSIGN = re.compile(r"^([A-Z]{3})\d")
 
@@ -186,8 +186,7 @@ class Collector:
 def main() -> None:
     cfg = cfgmod.load(sys.argv[1] if len(sys.argv) > 1 else None)
     conn = connect(cfg.database)
-    if needs_import(conn, cfg.tar1090_db_dir):
-        import_refs(conn, cfg.tar1090_db_dir)
+    refdb.update(conn, cfg, log=lambda m: print(m, flush=True))
 
     print(f"collector: receiver {cfg.lat:.4f},{cfg.lon:.4f}, radius {cfg.max_distance_km} km"
           + (f", ceiling {cfg.max_altitude_ft} ft" if cfg.max_altitude_ft else ""), flush=True)
@@ -210,8 +209,7 @@ def main() -> None:
             print(f"collector: read error: {e}", flush=True)
         if time.time() - last_ref_check > 6 * 3600:
             last_ref_check = time.time()
-            if needs_import(conn, cfg.tar1090_db_dir):
-                import_refs(conn, cfg.tar1090_db_dir)
+            refdb.update(conn, cfg, log=lambda m: print(m, flush=True))
         time.sleep(cfg.poll_interval_s)
 
 

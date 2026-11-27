@@ -25,8 +25,15 @@ sighting_gap_min = 20
 
 [storage]
 database = "data/adsflightlog.db"
-# tar1090's offline aircraft database (Mictronics), used for registrations/types.
+# Type and operator names are read from tar1090's local database.
 tar1090_db_dir = "/usr/local/share/tar1090/git-db/db"
+# Registrations/types per airframe: the latest tar1090-db (Mictronics) release is
+# downloaded here and refreshed every `refresh_days`. The copy bundled with tar1090
+# only updates when tar1090 is reinstalled, so newer aircraft would be missing.
+# Set aircraft_csv_url = "" to use tar1090's local copy only.
+aircraft_csv_url = "https://github.com/wiedehopf/tar1090-db/raw/refs/heads/csv/aircraft.csv.gz"
+aircraft_csv = "data/aircraft.csv.gz"
+refresh_days = 7
 
 [web]
 host = "0.0.0.0"

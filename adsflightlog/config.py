@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_CSV_URL = "https://github.com/wiedehopf/tar1090-db/raw/refs/heads/csv/aircraft.csv.gz"
 
 
 @dataclass
@@ -22,6 +23,9 @@ class Config:
     sighting_gap_s: float
     database: Path
     tar1090_db_dir: Path
+    aircraft_csv_url: str
+    aircraft_csv: Path
+    ref_refresh_days: float
     web_host: str
     web_port: int
 
@@ -42,9 +46,11 @@ def load(path: str | Path | None = None) -> Config:
         rj = json.loads(Path(rcv.get("receiver_json", "/run/readsb/receiver.json")).read_text())
         lat, lon = rj["lat"], rj["lon"]
 
-    db = Path(sto.get("database", "data/adsflightlog.db"))
-    if not db.is_absolute():
-        db = ROOT / db
+    def _path(v: str) -> Path:
+        p = Path(v)
+        return p if p.is_absolute() else ROOT / p
+
+    db = _path(sto.get("database", "data/adsflightlog.db"))
 
     return Config(
         lat=float(lat),
@@ -57,6 +63,9 @@ def load(path: str | Path | None = None) -> Config:
         sighting_gap_s=float(col.get("sighting_gap_min", 20)) * 60,
         database=db,
         tar1090_db_dir=Path(sto.get("tar1090_db_dir", "/usr/local/share/tar1090/git-db/db")),
+        aircraft_csv_url=str(sto.get("aircraft_csv_url", DEFAULT_CSV_URL)),
+        aircraft_csv=_path(sto.get("aircraft_csv", "data/aircraft.csv.gz")),
+        ref_refresh_days=float(sto.get("refresh_days", 7)),
         web_host=str(web.get("host", "0.0.0.0")),
         web_port=int(web.get("port", 8642)),
     )
