@@ -30,10 +30,13 @@ STATIC = cfgmod.ROOT / "web"
 
 CARD_SQL = """
 SELECT a.*, t.name AS type_name, t.desc AS desc, t.wtc AS wtc,
-       o.name AS operator_name, o.country AS operator_country, o.callsign AS operator_callsign
+       o.name AS operator_name, o.country AS operator_country, o.callsign AS operator_callsign,
+       h.flying_for, h.reason AS home_reason, fo.name AS flying_for_name
 FROM airframes a
 LEFT JOIN ref_types t ON t.type = a.type
 LEFT JOIN ref_operators o ON o.icao = a.operator
+LEFT JOIN airframe_home h ON h.hex = a.hex
+LEFT JOIN ref_operators fo ON fo.icao = h.flying_for
 """
 
 

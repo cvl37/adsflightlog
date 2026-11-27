@@ -20,6 +20,7 @@ from .tracks import Tracker
 from . import fleet
 from . import editions
 from .operators import OperatorResolver, fix_military
+from . import home
 
 AIRLINE_CALLSIGN = re.compile(r"^([A-Z]{3})\d")
 
@@ -159,7 +160,12 @@ class Collector:
         gs = ac.get("gs")
         emergency = ac.get("emergency")
         emergency = emergency if emergency and emergency != "none" else None
-        operator = self.resolver.resolve(hx, callsign, self.is_military(hx, ac))
+        military = self.is_military(hx, ac)
+        operator = self.resolver.resolve(hx, callsign, military)
+        if not military:
+            known, home_op = home.lookup(c, hx)   # the airline it belongs to, not its flight number
+            if known:
+                operator = home_op
 
         row = c.execute("SELECT * FROM airframes WHERE hex=?", (hx,)).fetchone()
         if row is None:
@@ -255,6 +261,9 @@ def main() -> None:
     fixed = fix_military(conn, OperatorResolver(conn, cfg.tar1090_html))
     if fixed:
         print(f"collector: corrected operator on {fixed} military record(s)", flush=True)
+    resolver = OperatorResolver(conn, cfg.tar1090_html)
+    moved = home.compute(conn, resolver)
+    print(f"collector: home airlines updated ({moved} card(s) moved)", flush=True)
 
     print(f"collector: receiver {cfg.lat:.4f},{cfg.lon:.4f}; zones: "
           + "; ".join(f"{z.name} ({z.describe()})" for z in cfg.zones), flush=True)
@@ -279,6 +288,10 @@ def main() -> None:
             last_ref_check = time.time()
             refdb.update(conn, cfg, log=lambda m: print(m, flush=True))
             fleet.update_opensky(conn, log=lambda m: print(m, flush=True))
+            col.spotter.flush()
+            moved = home.compute(conn, resolver)
+            if moved:
+                print(f"collector: {moved} card(s) moved to their home airline", flush=True)
         time.sleep(cfg.poll_interval_s)
     col.tracker.flush()
     col.spotter.flush()

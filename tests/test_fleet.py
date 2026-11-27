@@ -4,8 +4,9 @@ import time
 import unittest
 from pathlib import Path
 
-from adsflightlog import fleet
+from adsflightlog import fleet, home
 from adsflightlog.db import connect
+from adsflightlog.operators import OperatorResolver
 
 NOW = time.time()
 
@@ -35,6 +36,11 @@ class Fleet(unittest.TestCase):
         sp.observe("000006", NOW - 3600, 80.0, "TST")
         sp.observe("000005", NOW - 3600, 120.0, "OTH")
         sp.flush()
+        c.executemany("INSERT INTO ref_operators VALUES (?,?,?,?)",
+                      [("TST", "Test Air", "Xland", "TEST"), ("OTH", "Other Air", "Xland", "OTHER")])
+        r = OperatorResolver(c, Path("/nonexistent"))
+        r.ranges, r.starts = [(0, 0xFFFFFF, "Xland")], [0]
+        home.compute(c, r, NOW)
 
     def test_membership(self):
         rows = {r["hex"]: r for r in fleet.airline_fleet(self.conn, "TST", NOW)}

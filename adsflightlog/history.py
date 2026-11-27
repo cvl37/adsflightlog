@@ -181,6 +181,10 @@ def main() -> None:
         refresh = int(sys.argv[i + 1]) if i + 1 < len(sys.argv) and sys.argv[i + 1].isdigit() else 14
     n = import_history(conn, cfg, osky, log=lambda m: print(m, flush=True), refresh_days=refresh)
     print(f"history: imported {n} day(s)", flush=True)
+    from . import home
+    from .operators import OperatorResolver
+    moved = home.compute(conn, OperatorResolver(conn, cfg.tar1090_html))
+    print(f"history: home airlines updated ({moved} card(s) moved)", flush=True)
 
 
 if __name__ == "__main__":

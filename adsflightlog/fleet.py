@@ -4,8 +4,9 @@ Two sources:
 
 1. **Spotted**: every aircraft your receiver hears, at any distance, is logged
    (``spotted``), and so is every airline callsign it flies under
-   (``spotted_ops``). An airframe heard flying as KLM within ``CONFIRM_DAYS`` is
-   a confirmed member of KLM's fleet. This data is current and local, and it
+   (``spotted_ops``). An airframe that belongs to KLM (home.py: not just any
+   aircraft flying a KLM flight number) and was heard within ``CONFIRM_DAYS``
+   is a confirmed member of KLM's fleet. This data is current and local, and it
    also lists aircraft you've seen in range but not yet caught.
 
 2. **OpenSky**: the OpenSky Network aircraft database
@@ -26,6 +27,8 @@ import re
 import sqlite3
 import time
 import urllib.request
+
+from . import home
 
 OPENSKY_LIST = "https://s3.opensky-network.org/data-samples?list-type=2&prefix=metadata/aircraft-database-complete-"
 OPENSKY_FILE = "https://s3.opensky-network.org/data-samples/{key}"
@@ -72,7 +75,7 @@ CREATE TABLE IF NOT EXISTS fleet_hidden (
     hex      TEXT NOT NULL,
     PRIMARY KEY (operator, hex)
 ) WITHOUT ROWID;
-"""
+""" + home.SCHEMA
 
 
 def manufacturer(type_name: str | None) -> str:
@@ -231,22 +234,22 @@ def airline_fleet(conn: sqlite3.Connection, op: str, now: float | None = None) -
     """All airframes believed to be in ``op``'s fleet, with their status."""
     now = now or time.time()
     since = now - CONFIRM_DAYS * 86400
+    # Each airframe belongs to one airline (home.py): flying KLM flight numbers
+    # doesn't put a HOP or German Airways jet in KLM's fleet.
     q = """
-    WITH confirmed AS (
-        SELECT hex, MAX(last_seen) AS last_op FROM spotted_ops
-        WHERE operator = :op AND last_seen >= :since GROUP BY hex
-    ),
-    flies_elsewhere AS (   -- heard recently under another airline's callsign, not this one
-        SELECT DISTINCT o.hex FROM spotted_ops o
-        WHERE o.operator <> :op AND o.last_seen >= :since
-          AND o.last_seen > COALESCE((SELECT MAX(last_seen) FROM spotted_ops x
-                                      WHERE x.hex = o.hex AND x.operator = :op), 0)
+    WITH home AS (SELECT hex, operator FROM airframe_home),
+    confirmed AS (   -- belongs here and heard flying recently (under any callsign)
+        SELECT o.hex, MAX(o.last_seen) AS last_op FROM spotted_ops o
+        LEFT JOIN home h ON h.hex = o.hex
+        WHERE o.last_seen >= :since
+          AND (CASE WHEN h.hex IS NULL THEN o.operator ELSE h.operator END) = :op
+        GROUP BY o.hex
     ),
     listed AS (
         SELECT f.hex FROM ref_fleet f
         LEFT JOIN ref_aircraft r ON r.hex = f.hex
         WHERE f.operator = :op
-          AND f.hex NOT IN (SELECT hex FROM flies_elsewhere)
+          AND f.hex NOT IN (SELECT hex FROM home)   -- heard: home.py decided already
           -- re-registered since the OpenSky export: probably sold
           AND (r.reg IS NULL OR f.reg IS NULL
                OR replace(upper(r.reg), '-', '') = replace(upper(f.reg), '-', ''))
@@ -254,6 +257,7 @@ def airline_fleet(conn: sqlite3.Connection, op: str, now: float | None = None) -
     members AS (
         SELECT hex FROM confirmed
         UNION SELECT hex FROM listed
+        UNION SELECT hex FROM home WHERE operator = :op
         UNION SELECT hex FROM airframes WHERE operator = :op
     )
     SELECT m.hex,
@@ -295,8 +299,10 @@ def spotted_by(conn: sqlite3.Connection, where: str, params: tuple) -> list[dict
            COALESCE(a.model, r.model) AS model, t.name AS type_name, t.desc AS desc,
            a.card_no IS NOT NULL AS collected, a.card_no,
            s.last_seen AS spotted_last, s.min_dist_km AS spotted_min_km,
-           COALESCE((SELECT operator FROM spotted_ops o WHERE o.hex = s.hex ORDER BY last_seen DESC LIMIT 1),
-                    a.operator) AS operator
+           CASE WHEN EXISTS (SELECT 1 FROM airframe_home h WHERE h.hex = s.hex)
+                THEN (SELECT operator FROM airframe_home h WHERE h.hex = s.hex)
+                ELSE COALESCE((SELECT operator FROM spotted_ops o WHERE o.hex = s.hex
+                               ORDER BY last_seen DESC LIMIT 1), a.operator) END AS operator
     FROM (SELECT hex, last_seen, min_dist_km FROM spotted
           UNION SELECT hex, last_seen, closest_km FROM airframes WHERE hex NOT IN (SELECT hex FROM spotted)) s
     LEFT JOIN airframes a ON a.hex = s.hex

@@ -45,7 +45,7 @@ function cardHTML(c) {
   const al = c.airline;
   const brand = al && al.color ? `;--brand:${esc(al.color)}` : "";
   const chip = al && al.icon ? `<span class="chip">${logoImg(c.operator, "icon", "")}</span>` : "";
-  const op = (al && al.name) || c.operator_name || (c.military && c.country ? `${c.country} military` : "") || (c.operator ? c.operator : c.last_callsign && c.last_callsign !== c.reg ? c.last_callsign : "Private / unknown operator");
+  const op = (al && al.name) || c.operator_name || (c.military && c.country ? `${c.country} military` : "") || (!c.operator && c.flying_for ? `Wet-lease for ${c.flying_for_name || c.flying_for}` : "") || (c.operator ? c.operator : c.last_callsign && c.last_callsign !== c.reg ? c.last_callsign : "Private / unknown operator");
   return `
   <article class="card ${c.rarity}${c.retired ? " retired" : ""}" style="--hue:${hue(c.operator || c.type)}${brand}" data-hex="${esc(c.hex)}" data-ed="${c.edition || ""}" tabindex="0">
     <div class="card-inner">
@@ -182,6 +182,7 @@ async function openCard(hex, ed) {
           <dt>ICAO hex</dt><dd><code>${esc(c.hex)}</code></dd>
           <dt>Type</dt><dd>${esc(c.type || "—")}${c.desc ? ` (${esc(c.desc)}, wake ${esc(c.wtc || "?")})` : ""}</dd>
           <dt>Operator</dt><dd>${esc((c.airline && c.airline.name) || c.operator_name || c.operator || "—")}${c.operator_country ? `, ${esc(c.operator_country)}` : ""}${c.airline && c.airline.alliance ? ` · ${esc(c.airline.alliance)}` : ""}</dd>
+          ${c.flying_for && c.flying_for !== c.operator ? `<dt>Flies for</dt><dd>${esc(c.flying_for_name || c.flying_for)}${c.operator ? "" : " (wet-lease, own airline unknown)"}</dd>` : ""}
           <dt>First caught</dt><dd>${fmtTime(c.first_seen)}</dd>
           <dt>Last seen</dt><dd>${fmtTime(c.last_seen)}</dd>
           <dt>Closest pass</dt><dd>${fmtKm(c.closest_km)} km at ${fmtAlt(c.closest_alt_ft)} ft</dd>
@@ -503,7 +504,7 @@ function drawBinderPage() {
     ${view === "airline" ? `<div class="page-tools">
       <label><input type="checkbox" id="opt-unconf" ${BINDER.showUnconfirmed ? "checked" : ""}> Show unconfirmed (${d.unconfirmed})</label>
       <label><input type="checkbox" id="opt-hidden" ${BINDER.showHidden ? "checked" : ""}> Show hidden (${d.hidden})</label>
-      <span class="muted">Confirmed = seen flying as ${esc(d.key)} in the last 180 days (your receiver or Schiphol traffic). Unconfirmed = only in older OpenSky data.</span>
+      <span class="muted">Confirmed = belongs to ${esc(d.key)} and seen flying in the last 180 days (your receiver or Schiphol traffic). Aircraft that only fly ${esc(d.key)} flight numbers for another airline (wet-lease, regional partner) count for their own airline. Unconfirmed = only in older OpenSky data.</span>
     </div>` : ""}`;
   const body = ordered.map(([g, rs]) => {
     rs.sort((a, b) => b.collected - a.collected || (a.reg || "").localeCompare(b.reg || ""));

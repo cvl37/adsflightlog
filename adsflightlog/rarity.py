@@ -198,6 +198,9 @@ class RarityModel:
         self.combo_days: dict[tuple, set] = {}
         self.type_air: dict[str, set] = {}
         self.combo_air: dict[tuple, set] = {}
+        # Count airframes for the airline they belong to (home.py), not the flight number.
+        homes = dict(conn.execute("SELECT hex, operator FROM airframe_home")) if conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE name='airframe_home'").fetchone() else {}
         if has_days:
             all_days = set()
             for day, hx, typ, op in conn.execute(
@@ -205,6 +208,8 @@ class RarityModel:
                    JOIN ref_aircraft r ON r.hex = d.hex WHERE d.day >= ?""", (since_day,)
             ):
                 all_days.add(day)
+                if hx in homes:
+                    op = homes[hx]
                 if typ:
                     self.type_days.setdefault(typ, set()).add(day)
                     self.type_air.setdefault(typ, set()).add(hx)
