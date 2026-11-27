@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import re
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -18,6 +19,7 @@ from .cards import POINTS, TIERS, build_cards
 from .collector import altitude, in_range
 from .db import connect
 from .logos import Logos
+from . import tracks
 
 STATIC = cfgmod.ROOT / "web"
 
@@ -36,7 +38,9 @@ class App:
         self.logos = Logos(cfg.database.parent, cfg.ref_refresh_days)
 
     def conn(self):
-        return connect(self.cfg.database)
+        c = connect(self.cfg.database)
+        c.executescript(tracks.SCHEMA)
+        return c
 
     def cards(self) -> list[dict]:
         with self.conn() as c:
@@ -87,10 +91,52 @@ class App:
         with self.conn() as c:
             card["history"] = [
                 dict(r) for r in c.execute(
-                    "SELECT * FROM sightings WHERE hex=? ORDER BY start DESC LIMIT 50", (hx,)
+                    """SELECT s.*, t.n AS track_points, t.first_t AS track_from, t.last_t AS track_to
+                       FROM sightings s LEFT JOIN sighting_tracks t ON t.sighting_id = s.id
+                       WHERE s.hex=? ORDER BY s.start DESC LIMIT 50""", (hx,)
                 )
             ]
         return card
+
+    def track(self, sighting_id: int) -> dict | None:
+        with self.conn() as c:
+            s = c.execute("SELECT * FROM sightings WHERE id=?", (sighting_id,)).fetchone()
+            if not s:
+                return None
+            pts = tracks.load(c, sighting_id) or []
+        return {
+            "sighting": dict(s),
+            # [epoch_s, lat, lon, alt_ft|null, in_zone 0/1]
+            "points": [[round(t, 1), lat, lon, alt, int(z)] for t, lat, lon, alt, z in pts],
+        }
+
+    def track_geojson(self, sighting_id: int) -> dict | None:
+        tr = self.track(sighting_id)
+        if not tr:
+            return None
+        pts, s = tr["points"], tr["sighting"]
+        return {
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "properties": {
+                    "hex": s["hex"], "callsign": s["callsign"], "sighting_id": s["id"],
+                    "zone_entry": s["start"], "zone_exit": s["end"],
+                    # per-vertex extras, aligned with the coordinates
+                    "times": [p[0] for p in pts],
+                    "alt_ft": [p[3] for p in pts],
+                    "in_zone": [p[4] for p in pts],
+                },
+                "geometry": {
+                    "type": "LineString",
+                    # GeoJSON order is lon, lat[, elevation in metres]
+                    "coordinates": [
+                        [p[2], p[1]] + ([round(p[3] * 0.3048)] if p[3] is not None else [])
+                        for p in pts
+                    ],
+                },
+            }],
+        }
 
     def types(self) -> list[dict]:
         out: dict[str, dict] = {}
@@ -172,6 +218,24 @@ def make_handler(app: App):
                 if p.startswith("/api/card/"):
                     card = app.card(p.rsplit("/", 1)[-1])
                     return self._json(card) if card else self._json({"error": "not found"}, 404)
+                m = re.fullmatch(r"/api/sighting/(\d+)/track(\.geojson)?", p)
+                if m:
+                    sid = int(m.group(1))
+                    if m.group(2):
+                        gj = app.track_geojson(sid)
+                        if not gj:
+                            return self._json({"error": "not found"}, 404)
+                        body = json.dumps(gj).encode()
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/geo+json")
+                        self.send_header("Content-Disposition",
+                                         f'attachment; filename="sighting-{sid}.geojson"')
+                        self.send_header("Content-Length", str(len(body)))
+                        self.end_headers()
+                        self.wfile.write(body)
+                        return
+                    tr = app.track(sid)
+                    return self._json(tr) if tr else self._json({"error": "not found"}, 404)
                 if p == "/api/types":
                     return self._json(app.types())
                 if p == "/api/operators":

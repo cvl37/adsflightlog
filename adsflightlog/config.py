@@ -52,6 +52,8 @@ class Config:
     ref_refresh_days: float
     web_host: str
     web_port: int
+    track_before_s: float | None = 1800
+    track_after_s: float | None = 1800
 
 
 def load(path: str | Path | None = None) -> Config:
@@ -89,6 +91,8 @@ def load(path: str | Path | None = None) -> Config:
         aircraft_csv_url=str(sto.get("aircraft_csv_url", DEFAULT_CSV_URL)),
         aircraft_csv=_path(sto.get("aircraft_csv", "data/aircraft.csv.gz")),
         ref_refresh_days=float(sto.get("refresh_days", 7)),
+        track_before_s=_minutes(raw.get("tracks", {}).get("before_min", 30)),
+        track_after_s=_minutes(raw.get("tracks", {}).get("after_min", 30)),
         web_host=str(web.get("host", "0.0.0.0")),
         web_port=int(web.get("port", 8642)),
     )
@@ -115,3 +119,10 @@ def _zones(col: dict) -> list[Zone]:
             max_altitude_ft=int(col.get("max_altitude_ft", 0)) or None,
         ))
     return zones
+
+
+def _minutes(v) -> float | None:
+    """Minutes -> seconds; "all" means everything the receiver saw."""
+    if isinstance(v, str) and v.strip().lower() == "all":
+        return None
+    return float(v) * 60

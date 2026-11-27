@@ -220,3 +220,18 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .crest.logo:not(:has(img)) span { display: inline; }
 .credit { color: var(--muted); font-size: 12px; padding: 0 28px 28px; }
 .credit a { color: inherit; }
+
+/* ---------- flight-path map ---------- */
+.track-map { height: 340px; border-radius: 10px; border: 1px solid var(--line); background: #0b0f17; }
+.track-info { font-size: 12.5px; color: var(--muted); margin: 8px 0 4px; }
+.track-info a { color: var(--accent); }
+.track-info .key { display: inline-block; width: 18px; height: 0; vertical-align: middle; margin: 0 4px 0 8px; }
+.track-info .key.zone { border-top: 4px solid #ffb547; }
+.track-info .key.out { border-top: 2px dashed #8fb3ff; }
+table.sightings tr.has-track { cursor: pointer; }
+table.sightings tr.has-track:hover td { background: rgba(255,255,255,.03); }
+table.sightings tr.sel td { background: rgba(255,181,71,.10); }
+.maplink { color: var(--accent); font-size: 12px; }
+.muted { color: var(--muted); }
+.leaflet-container { font: inherit; }
+.dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9) saturate(.6); }

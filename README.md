@@ -61,6 +61,27 @@ Changes to the zones apply from then on. Cards you already collected stay in you
 
 Run the zone geometry tests with `python3 -m unittest discover -s tests -t .`.
 
+## Flight paths
+
+Each sighting stores the aircraft's flight path as raw positions, not images. The path covers the time before it entered your catch zones, every position while inside them, and the time after it left. You set how much in `config.toml`:
+
+```toml
+[tracks]
+before_min = 30     # or "all" for everything the receiver saw
+after_min = 30
+```
+
+- **How it works:** the collector already reads every aircraft's position each poll. It keeps a short, thinned-out trail per aircraft in memory and saves it only when the aircraft is caught.
+- **Resolution:**
+  - Inside a zone, every poll is kept (5 s).
+  - Outside a zone, a point is kept every 30 s, on a turn of 10° or more, or on an altitude change of 500 ft or more.
+- **Storage:** one zlib-compressed blob per sighting (`sighting_tracks` table). An hour of flight is typically 2 to 4 KB.
+- **On the card:** the back of each card shows the path on a map, with the in-zone part highlighted.
+- **Raw data:**
+  - `/api/sighting/<id>/track` returns JSON points `[epoch_s, lat, lon, alt_ft, in_zone]`.
+  - `/api/sighting/<id>/track.geojson` returns a GeoJSON LineString, with per-vertex times, altitudes and in-zone flags in its properties.
+- **Limits:** "all" means what *your* receiver heard: it begins when the aircraft first came into reception range, or when the collector last restarted. In-memory history is capped at 3 h before a catch and 6 h per track.
+
 ## Cards
 
 - **One card per airframe** (ICAO hex), numbered in the order you caught them. Each card carries the series year of its first catch.

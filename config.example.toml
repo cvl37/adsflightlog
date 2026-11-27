@@ -37,6 +37,13 @@ max_distance_km = 25.0
 # bearing_to = 225
 # max_altitude_ft = 10000
 
+[tracks]
+# Flight path saved with each sighting: minutes before entering and after
+# leaving the catch zones, or "all" for everything the receiver saw
+# (memory-capped at 3 h before, 6 h per track).
+before_min = 30
+after_min = 30
+
 [storage]
 database = "data/adsflightlog.db"
 # Type and operator names are read from tar1090's local database.

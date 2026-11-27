@@ -68,6 +68,8 @@ function cardHTML(c) {
 }
 
 let CARDS = [];
+let SUMMARY = null;
+let MAP = null;
 
 function renderBinder() {
   const q = $("#search").value.trim().toLowerCase();
@@ -156,10 +158,11 @@ async function openCard(hex) {
   const c = await api(`/api/card/${hex}`);
   if (c.error) return;
   const rows = c.history.map((s) => `
-    <tr><td>${fmtTime(s.start)}</td><td>${esc(s.callsign || "—")}</td>
+    <tr data-sid="${s.id}" class="${s.track_points ? "has-track" : ""}"><td>${fmtTime(s.start)}</td><td>${esc(s.callsign || "—")}</td>
     <td class="num">${fmtKm(s.min_dist_km)} km</td>
     <td class="num">${fmtAlt(s.min_alt_ft)}–${fmtAlt(s.max_alt_ft)}</td>
-    <td class="num">${fmtDur(s.end - s.start)}</td></tr>`).join("");
+    <td class="num">${fmtDur(s.end - s.start)}</td>
+    <td>${s.track_points ? `<span class="maplink">map</span>` : `<span class="muted">—</span>`}</td></tr>`).join("");
   $("#modal-body").innerHTML = `
     <div class="detail">
       <div>${cardHTML(c)}</div>
@@ -177,17 +180,100 @@ async function openCard(hex) {
           <dt>Type in binder</dt><dd>${c.type_count} airframe${c.type_count === 1 ? "" : "s"}</dd>
           <dt>Value</dt><dd>${c.points} pts · ${c.rarity}</dd>
         </dl>
+        <h3>Flight path</h3>
+        <div id="track-map" class="track-map"></div>
+        <div id="track-info" class="track-info"></div>
         <h3>Sightings</h3>
-        <table><thead><tr><th>When</th><th>Callsign</th><th class="num">Closest</th><th class="num">Altitude</th><th class="num">In range</th></tr></thead>
+        <table class="sightings"><thead><tr><th>When</th><th>Callsign</th><th class="num">Closest</th><th class="num">Altitude</th><th class="num">In zone</th><th>Track</th></tr></thead>
         <tbody>${rows}</tbody></table>
       </div>
     </div>`;
   $("#modal").hidden = false;
+  setupMap();
+  $("#modal-body .sightings").addEventListener("click", (e) => {
+    const tr = e.target.closest("tr.has-track");
+    if (tr) showTrack(+tr.dataset.sid);
+  });
+  const first = c.history.find((s) => s.track_points);
+  if (first) showTrack(first.id);
+  else $("#track-info").textContent = "No flight path recorded yet: paths are logged for sightings from the moment track logging was switched on.";
+}
+
+// ---------- flight-path map ----------
+const R_EARTH = 6371.0088;
+function dest(lat, lon, brg, km) {
+  const p1 = (lat * Math.PI) / 180, l1 = (lon * Math.PI) / 180, b = (brg * Math.PI) / 180, d = km / R_EARTH;
+  const p2 = Math.asin(Math.sin(p1) * Math.cos(d) + Math.cos(p1) * Math.sin(d) * Math.cos(b));
+  const l2 = l1 + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(p1), Math.cos(d) - Math.sin(p1) * Math.sin(p2));
+  return [(p2 * 180) / Math.PI, (l2 * 180) / Math.PI];
+}
+
+function zoneLayer(z, rx) {
+  const style = { color: "#ffb547", weight: 1, fillColor: "#ffb547", fillOpacity: 0.07, dashArray: "3 4" };
+  if (z.bearing_from == null) return L.circle([rx.lat, rx.lon], { ...style, radius: z.max_distance_km * 1000 });
+  const span = ((z.bearing_to - z.bearing_from) % 360 + 360) % 360 || 360;
+  const pts = [[rx.lat, rx.lon]];
+  for (let i = 0; i <= 48; i++) pts.push(dest(rx.lat, rx.lon, z.bearing_from + (span * i) / 48, z.max_distance_km));
+  return L.polygon(pts, style);
+}
+
+function setupMap() {
+  if (MAP) { MAP.remove(); MAP = null; }
+  const el = $("#track-map");
+  if (!el || !window.L || !SUMMARY) return;
+  const rx = SUMMARY.receiver;
+  MAP = L.map(el, { zoomControl: true, attributionControl: true }).setView([rx.lat, rx.lon], 10);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18, className: "dark-tiles",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  }).addTo(MAP);
+  SUMMARY.zones.forEach((z) => zoneLayer(z, rx).addTo(MAP));
+  L.circleMarker([rx.lat, rx.lon], { radius: 4, color: "#fff", weight: 2, fillColor: "#ffb547", fillOpacity: 1 })
+    .bindTooltip("Receiver").addTo(MAP);
+  MAP.trackLayer = L.layerGroup().addTo(MAP);
+}
+
+const fmtClock = (t) => new Date(t * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+async function showTrack(sid) {
+  if (!MAP) return;
+  document.querySelectorAll("#modal-body .sightings tr").forEach((r) => r.classList.toggle("sel", +r.dataset.sid === sid));
+  const d = await api(`/api/sighting/${sid}/track`);
+  const pts = d.points || [];
+  MAP.trackLayer.clearLayers();
+  if (!pts.length) { $("#track-info").textContent = "No flight path stored for this sighting."; return; }
+  // split into runs of in-zone / outside-zone points (sharing the boundary vertex)
+  let run = [pts[0]];
+  const flush = () => {
+    if (run.length < 2) return;
+    const inZone = run[run.length - 1][4] && run[0][4];
+    L.polyline(run.map((p) => [p[1], p[2]]), inZone
+      ? { color: "#ffb547", weight: 4 }
+      : { color: "#8fb3ff", weight: 2, opacity: 0.8, dashArray: "5 5" }).addTo(MAP.trackLayer);
+  };
+  for (let i = 1; i < pts.length; i++) {
+    run.push(pts[i]);
+    if (pts[i][4] !== pts[i - 1][4]) { flush(); run = [pts[i]]; }
+  }
+  flush();
+  pts.forEach((p) => L.circleMarker([p[1], p[2]], {
+    radius: p[4] ? 2.5 : 1.5, weight: 0, fillColor: p[4] ? "#ffb547" : "#8fb3ff", fillOpacity: 0.9,
+  }).bindTooltip(`${fmtClock(p[0])} · ${p[3] == null ? "alt ?" : fmtAlt(p[3]) + (p[3] && p[3] < 10000 ? " ft" : "")}`).addTo(MAP.trackLayer));
+  const a = pts[0], b = pts[pts.length - 1];
+  L.circleMarker([a[1], a[2]], { radius: 5, color: "#8fb3ff", weight: 2, fillOpacity: 0 }).bindTooltip(`First seen ${fmtClock(a[0])}`).addTo(MAP.trackLayer);
+  L.circleMarker([b[1], b[2]], { radius: 5, color: "#8fb3ff", weight: 2, fillColor: "#8fb3ff", fillOpacity: 1 }).bindTooltip(`Last seen ${fmtClock(b[0])}`).addTo(MAP.trackLayer);
+  MAP.fitBounds(L.latLngBounds(pts.map((p) => [p[1], p[2]])).pad(0.1));
+  const s = d.sighting;
+  $("#track-info").innerHTML =
+    `<span class="key zone"></span> in zone ${fmtClock(s.start)}–${fmtClock(s.end)} ` +
+    `<span class="key out"></span> tracked ${fmtClock(a[0])}–${fmtClock(b[0])} · ${pts.length} points · ` +
+    `<a href="/api/sighting/${sid}/track.geojson" download>GeoJSON</a> · <a href="/api/sighting/${sid}/track" target="_blank">JSON</a>`;
 }
 
 async function refresh() {
   const [s, cards] = await Promise.all([api("/api/summary"), api("/api/cards")]);
   CARDS = cards;
+  SUMMARY = s;
   renderSummary(s);
   renderBinder();
   const active = $(".tabs .active").dataset.tab;
@@ -208,8 +294,9 @@ document.querySelectorAll(".tabs button").forEach((b) =>
 ["#search", "#rarity-filter", "#sort"].forEach((s) => $(s).addEventListener("input", renderBinder));
 $("#cards").addEventListener("click", (e) => { const c = e.target.closest(".card"); if (c) openCard(c.dataset.hex); });
 $("#cards").addEventListener("keydown", (e) => { if (e.key === "Enter") { const c = e.target.closest(".card"); if (c) openCard(c.dataset.hex); } });
-$("#modal").addEventListener("click", (e) => { if (e.target.id === "modal" || e.target.classList.contains("close")) $("#modal").hidden = true; });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#modal").hidden = true; });
+function closeModal() { $("#modal").hidden = true; if (MAP) { MAP.remove(); MAP = null; } }
+$("#modal").addEventListener("click", (e) => { if (e.target.id === "modal" || e.target.classList.contains("close")) closeModal(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
 refresh();
 setInterval(refresh, 30000);

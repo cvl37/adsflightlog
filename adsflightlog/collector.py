@@ -16,6 +16,7 @@ import time
 from . import config as cfgmod
 from .db import connect
 from . import refdb
+from .tracks import Tracker
 
 AIRLINE_CALLSIGN = re.compile(r"^([A-Z]{3})\d")
 
@@ -102,6 +103,7 @@ class Collector:
         self.cfg = cfg
         self.conn = conn
         self.log = log
+        self.tracker = Tracker(conn, cfg.track_before_s, cfg.track_after_s, log=log)
 
     def poll_once(self, now: float | None = None) -> int:
         data = json.loads(self.cfg.aircraft_json.read_text())
@@ -112,14 +114,22 @@ class Collector:
                 hx = (ac.get("hex") or "").lower()
                 if not hx or hx.startswith("~"):  # '~' = non-ICAO (TIS-B) address
                     continue
+                if "lat" not in ac or ac.get("seen_pos", 0) > self.cfg.max_position_age_s:
+                    continue
                 dist = in_range(self.cfg, ac)
+                pos_t = now - ac.get("seen_pos", 0)
+                self.tracker.observe(hx, pos_t, ac["lat"], ac["lon"], altitude(ac),
+                                     ac.get("track", ac.get("true_heading")), dist is not None)
                 if dist is None:
                     continue
-                self.record(hx, ac, dist, now)
+                sid = self.record(hx, ac, dist, now)
+                self.tracker.attach(hx, sid, now)
                 hits += 1
+        self.tracker.tick(now)
         return hits
 
-    def record(self, hx: str, ac: dict, dist: float, now: float) -> None:
+    def record(self, hx: str, ac: dict, dist: float, now: float) -> int:
+        """Log an in-zone hit; returns the sighting id it belongs to."""
         c = self.conn
         callsign = (ac.get("flight") or "").strip() or None
         alt = altitude(ac)
@@ -156,16 +166,16 @@ class Collector:
                     dist, alt, alt, gs, emergency,
                 ),
             )
-            c.execute(
+            sid = c.execute(
                 """INSERT INTO sightings (hex, callsign, start, end, min_dist_km, min_alt_ft,
                        max_alt_ft, max_gs_kt, closest_lat, closest_lon)
                    VALUES (?,?,?,?,?,?,?,?,?,?)""",
                 (hx, callsign, now, now, dist, alt, alt, gs, ac["lat"], ac["lon"]),
-            )
+            ).lastrowid
             self.log(f"NEW CARD #{card_no}: {hx} {callsign or ''} "
                      f"{(ref['reg'] if ref else '') or ''} {(ref['type'] if ref else '') or ''} "
                      f"at {dist:.1f} km")
-            return
+            return sid
 
         closer = row["closest_km"] is None or dist < row["closest_km"]
         sight = c.execute(
@@ -189,12 +199,12 @@ class Collector:
             ),
         )
         if new_sighting:
-            c.execute(
+            return c.execute(
                 """INSERT INTO sightings (hex, callsign, start, end, min_dist_km, min_alt_ft,
                        max_alt_ft, max_gs_kt, closest_lat, closest_lon)
                    VALUES (?,?,?,?,?,?,?,?,?,?)""",
                 (hx, callsign, now, now, dist, alt, alt, gs, ac["lat"], ac["lon"]),
-            )
+            ).lastrowid
         else:
             s_closer = sight["min_dist_km"] is None or dist < sight["min_dist_km"]
             c.execute(
@@ -211,6 +221,7 @@ class Collector:
                     _max(sight["max_gs_kt"], gs), sight["id"],
                 ),
             )
+            return sight["id"]
 
 
 def main() -> None:
@@ -241,6 +252,8 @@ def main() -> None:
             last_ref_check = time.time()
             refdb.update(conn, cfg, log=lambda m: print(m, flush=True))
         time.sleep(cfg.poll_interval_s)
+    col.tracker.flush()
+    print("collector: stopped, tracks saved", flush=True)
 
 
 if __name__ == "__main__":
