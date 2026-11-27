@@ -76,7 +76,9 @@ main { padding: 20px 28px 60px; }
   cursor: pointer; transition: transform .2s, box-shadow .2s;
   transform-style: preserve-3d; user-select: none;
 }
-.card:hover { transform: translateY(-4px) rotateX(4deg); box-shadow: 0 14px 30px rgba(0,0,0,.5); }
+@media (hover: hover) {
+  .card:hover { transform: translateY(-4px) rotateX(4deg); box-shadow: 0 14px 30px rgba(0,0,0,.5); }
+}
 .card.uncommon { --tier: var(--uncommon); }
 .card.rare { --tier: var(--rare); }
 .card.epic { --tier: var(--epic); }
@@ -283,3 +285,109 @@ table.sightings tr.sel td { background: rgba(255,181,71,.10); }
 .sleeve .s-hide { position: absolute; top: 8px; right: 8px; background: none; border: 1px solid #34405a; color: var(--muted);
   border-radius: 6px; padding: 0 7px; cursor: pointer; font-size: 12px; line-height: 20px; }
 .sleeve .s-hide:hover { color: var(--text); border-color: var(--muted); }
+
+/* ---------- shared fixes ---------- */
+.lbl-short { display: none; }
+.detail > *, .back, .page-head > * { min-width: 0; }
+dl.facts { grid-template-columns: max-content minmax(0, 1fr); }
+dl.facts dd { overflow-wrap: anywhere; }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+body.modal-open { overflow: hidden; }
+.map-toggle {
+  background: #1b1f2a; color: #e8ecf4; border: 1px solid #3a4560; border-radius: 6px;
+  padding: 6px 10px; font: 600 12px system-ui, sans-serif;
+}
+.map-toggle.on { background: var(--accent); color: #1b1f2a; border-color: var(--accent); }
+.pt-popup .leaflet-popup-content { margin: 6px 10px; font-size: 12px; }
+
+/* ---------- phones ---------- */
+@media (max-width: 640px) {
+  body { font-size: 14px; }
+  .top { padding: 14px 16px; gap: 12px; }
+  .logo { font-size: 26px; }
+  h1 { font-size: 18px; }
+  .sub { font-size: 12px; }
+  .level { flex: 1 1 100%; min-width: 0; }
+
+  .stats { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; padding: 12px 16px; }
+  .stat { padding: 7px 6px; border-radius: 9px; text-align: center; }
+  .stat .v { font-size: 18px; }
+  .stat .k { font-size: 8.5px; letter-spacing: .03em; line-height: 1.25; }
+  .stat[style] { text-align: left; padding: 8px 10px; }
+  .stat[style] { grid-column: 1 / -1 !important; }
+  .tiers span { font-size: 11px; }
+
+  .tabs { padding: 0 8px; gap: 0; }
+  .tabs button { padding: 11px 10px; font-size: 14px; }
+  .lbl-long { display: none; }
+  .lbl-short { display: inline; }
+
+  main { padding: 14px 12px 40px; }
+  .subnav { flex-wrap: nowrap; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; }
+  .subnav button { white-space: nowrap; flex: none; padding: 7px 13px; }
+  .toolbar { gap: 8px; }
+  .toolbar input { flex: 1 1 100%; }
+  .toolbar select { flex: 1 1 0; min-width: 0; }
+  input, select { font-size: 16px; } /* stops iOS zooming on focus */
+
+  /* two cards per row, scaled down */
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .card { padding: 5px; border-radius: 10px; }
+  .card-inner { border-radius: 7px; }
+  .card-head { font-size: 8px; padding: 4px 6px; letter-spacing: .03em; }
+  .art { margin: 5px 5px 0; }
+  .art .tail { font-size: 9px; left: 6px; bottom: 4px; }
+  .chip { width: 24px; height: 24px; top: 4px; left: 4px; }
+  .chip img { width: 17px; height: 17px; }
+  .plate { padding: 5px 6px 2px; }
+  .plate .reg { font-size: 14px; }
+  .plate .model, .plate .op { font-size: 9.5px; }
+  .statline { margin: 2px 5px 0; padding: 3px 0 4px; }
+  .statline b { font-size: 10px; }
+  .statline span { font-size: 6.5px; letter-spacing: .02em; }
+  .rarity-tag { font-size: 8px; padding: 3px 6px; letter-spacing: .08em; }
+  .badges { top: 24px; right: 2px; gap: 3px; }
+  .badge { font-size: 7.5px; padding: 1px 5px; }
+
+  .sleeve { padding: 9px; border-radius: 10px; }
+  .sleeve .s-reg { font-size: 14px; }
+  .sleeve .s-type { font-size: 10.5px; }
+  .sleeve .s-meta { font-size: 9.5px; }
+  .sleeve .s-hide { min-width: 30px; min-height: 30px; top: 4px; right: 4px; font-size: 14px; }
+
+  .spines, .airlines, .dex { grid-template-columns: minmax(0, 1fr); }
+
+  .page-head { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .page-head .back { justify-self: start; }
+  .page-title { flex-wrap: wrap; gap: 10px; }
+  .page-title .logo-plate { padding: 8px 12px; }
+  .page-title .logo-full { width: 170px; height: 30px; }
+  .page-title h2 { font-size: 20px; }
+  .page-prog { min-width: 0; }
+  .page-tools { gap: 6px 14px; }
+  .page-tools .muted { flex-basis: 100%; font-size: 12px; }
+
+  /* card detail: full-screen sheet */
+  .modal { padding: 0; place-items: stretch; }
+  .modal-inner {
+    width: 100%; max-height: none; height: 100%; border-radius: 0; border: 0;
+    padding: 52px 14px calc(24px + env(safe-area-inset-bottom));
+  }
+  .close {
+    position: fixed; top: 8px; right: 10px; z-index: 1000; width: 40px; height: 40px;
+    border-radius: 50%; background: rgba(15,20,32,.85); color: var(--text); line-height: 1;
+  }
+  .detail { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .detail .card { width: 62%; max-width: 230px; margin: 0 auto; }
+  .back h2 { font-size: 20px; }
+  .back .logo-plate { padding: 8px 12px; }
+  .back .logo-full { width: 170px; height: 30px; }
+  dl.facts { gap: 3px 12px; font-size: 13.5px; }
+  .track-map { height: 280px; }
+  table { font-size: 12.5px; }
+  th, td { padding: 6px 5px; }
+  table.sightings { min-width: 460px; }
+
+  .live .col-hex, .live .col-speed { display: none; }
+  .credit { padding: 0 16px 24px; }
+}

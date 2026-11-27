@@ -148,10 +148,10 @@ async function renderLive() {
     `${d.aircraft.length} aircraft inside your catch zones right now · ${d.outside_radius} more tracked outside them (not counted).`;
   $("#live-body").innerHTML = d.aircraft.map((a) => `
     <tr>
-      <td>${esc(a.callsign || "—")}</td><td><code>${esc(a.hex)}</code></td>
+      <td>${esc(a.callsign || "—")}</td><td class="col-hex"><code>${esc(a.hex)}</code></td>
       <td class="num">${a.dist_km} km</td><td class="num">${fmtAlt(a.alt_ft)}</td>
-      <td class="num">${a.gs_kt == null ? "—" : Math.round(a.gs_kt) + " kt"}</td>
-      <td>${a.collected ? `<span class="yes">in binder</span>` : `<span class="catch">new catch!</span>`}</td>
+      <td class="num col-speed">${a.gs_kt == null ? "—" : Math.round(a.gs_kt) + " kt"}</td>
+      <td>${a.collected ? `<span class="yes">in binder</span>` : `<span class="catch">new!</span>`}</td>
     </tr>`).join("");
 }
 
@@ -185,11 +185,14 @@ async function openCard(hex) {
         <div id="track-map" class="track-map"></div>
         <div id="track-info" class="track-info"></div>
         <h3>Sightings</h3>
-        <table class="sightings"><thead><tr><th>When</th><th>Callsign</th><th class="num">Closest</th><th class="num">Altitude</th><th class="num">In zone</th><th>Track</th></tr></thead>
-        <tbody>${rows}</tbody></table>
+        <div class="table-wrap"><table class="sightings"><thead><tr><th>When</th><th>Callsign</th><th class="num">Closest</th><th class="num">Altitude</th><th class="num">In zone</th><th>Track</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
       </div>
     </div>`;
   $("#modal").hidden = false;
+  document.body.classList.add("modal-open");
+  $("#modal-body").scrollTop = 0;
+  $(".modal-inner").scrollTop = 0;
   setupMap();
   $("#modal-body .sightings").addEventListener("click", (e) => {
     const tr = e.target.closest("tr.has-track");
@@ -223,7 +226,44 @@ function setupMap() {
   const el = $("#track-map");
   if (!el || !window.L || !SUMMARY) return;
   const rx = SUMMARY.receiver;
-  MAP = L.map(el, { zoomControl: true, attributionControl: true }).setView([rx.lat, rx.lon], 10);
+  const touch = window.matchMedia("(pointer: coarse)").matches;
+  // On touch screens one-finger drags scroll the page; panning is switched on with a button.
+  MAP = L.map(el, { zoomControl: true, attributionControl: true, dragging: !touch, tap: false })
+    .setView([rx.lat, rx.lon], 10);
+  if (touch) {
+    const Toggle = L.Control.extend({
+      onAdd() {
+        const b = L.DomUtil.create("button", "map-toggle");
+        b.type = "button";
+        b.textContent = "Move map";
+        L.DomEvent.disableClickPropagation(b);
+        b.addEventListener("click", () => {
+          const on = !MAP.dragging.enabled();
+          on ? MAP.dragging.enable() : MAP.dragging.disable();
+          b.textContent = on ? "Done" : "Move map";
+          b.classList.toggle("on", on);
+        });
+        return b;
+      },
+    });
+    new Toggle({ position: "topright" }).addTo(MAP);
+  }
+  // Tap/click anywhere: show the nearest track point (tooltips need hover otherwise).
+  MAP.on("click", (e) => {
+    const pts = MAP.trackPoints || [];
+    let best = null, bd = Infinity;
+    const cp = MAP.latLngToContainerPoint(e.latlng);
+    for (const p of pts) {
+      const d = cp.distanceTo(MAP.latLngToContainerPoint([p[1], p[2]]));
+      if (d < bd) { bd = d; best = p; }
+    }
+    if (best && bd < 40) {
+      L.popup({ closeButton: false, className: "pt-popup" })
+        .setLatLng([best[1], best[2]])
+        .setContent(`${fmtClock(best[0])} · ${best[3] == null ? "alt ?" : fmtAlt(best[3]) + (best[3] && best[3] < 10000 ? " ft" : "")}${best[4] ? " · in zone" : ""}`)
+        .openOn(MAP);
+    }
+  });
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 18, className: "dark-tiles",
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -241,6 +281,7 @@ async function showTrack(sid) {
   document.querySelectorAll("#modal-body .sightings tr").forEach((r) => r.classList.toggle("sel", +r.dataset.sid === sid));
   const d = await api(`/api/sighting/${sid}/track`);
   const pts = d.points || [];
+  MAP.trackPoints = pts;
   MAP.trackLayer.clearLayers();
   if (!pts.length) { $("#track-info").textContent = "No flight path stored for this sighting."; return; }
   // split into runs of in-zone / outside-zone points (sharing the boundary vertex)
@@ -295,7 +336,11 @@ document.querySelectorAll(".tabs button").forEach((b) =>
 ["#search", "#rarity-filter", "#sort"].forEach((s) => $(s).addEventListener("input", renderBinder));
 $("#cards").addEventListener("click", (e) => { const c = e.target.closest(".card"); if (c) openCard(c.dataset.hex); });
 $("#cards").addEventListener("keydown", (e) => { if (e.key === "Enter") { const c = e.target.closest(".card"); if (c) openCard(c.dataset.hex); } });
-function closeModal() { $("#modal").hidden = true; if (MAP) { MAP.remove(); MAP = null; } }
+function closeModal() {
+  $("#modal").hidden = true;
+  document.body.classList.remove("modal-open");
+  if (MAP) { MAP.remove(); MAP = null; }
+}
 $("#modal").addEventListener("click", (e) => { if (e.target.id === "modal" || e.target.classList.contains("close")) closeModal(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
