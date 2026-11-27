@@ -101,7 +101,7 @@ class Home(unittest.TestCase):
         home.compute(self.conn, self.r, NOW)
         self.assertEqual(home.lookup(self.conn, "100001"), (True, None))
         why, ff = self.conn.execute("SELECT reason, flying_for FROM airframe_home WHERE hex='100001'").fetchone()
-        self.assertEqual((why, ff), ("registered to National Police Air Unit", "BIG"))
+        self.assertEqual((why, ff), ("registered to National Police Air Unit", None))
         self.assertEqual(home.lookup(self.conn, "100002"), (True, "REG"))
         self.assertEqual(home.lookup(self.conn, "100003"), (True, "BIG"))
 

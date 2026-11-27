@@ -14,7 +14,8 @@ For each civil airframe, in this order:
    Service"), the owner name is matched to an airline from the same country;
    if none matches, the owner is not an airline and the airframe gets no home
    airline (reason ``registered to <owner>``), even if it flies another
-   operator's callsign now and then (police helicopters on Kustwacht flights).
+   operator's callsign now and then (police helicopters on Kustwacht flights);
+   such flights are incidental, so no ``flying_for`` is recorded either.
    Lessors and "Private" don't count as owners here.
 2. The OpenSky operator, likewise (older data, fewer airframes), if that
    airline was heard flying at all in the window (OpenSky still lists defunct ones).
@@ -182,6 +183,8 @@ def compute(conn: sqlite3.Connection, resolver: OperatorResolver, now: float | N
         if hx in military:
             continue
         op, why = pick(hx, h, ref.get(hx), fleet_size, op_country, resolver.country(hx), owners.get(hx))
+        if why.startswith(REGISTERED_TO):
+            top = None   # not an airline's aircraft: an odd flight under one's callsign is incidental
         if op or why:
             rows.append((hx, op, top, why, now))
 

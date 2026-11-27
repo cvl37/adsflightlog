@@ -182,7 +182,7 @@ async function openCard(hex, ed) {
           <dt>ICAO hex</dt><dd><code>${esc(c.hex)}</code></dd>
           <dt>Type</dt><dd>${esc(c.type || "—")}${c.desc ? ` (${esc(c.desc)}, wake ${esc(c.wtc || "?")})` : ""}</dd>
           <dt>Operator</dt><dd>${esc((c.airline && c.airline.name) || c.operator_name || c.operator || c.registered_owner || "—")}${c.operator_country ? `, ${esc(c.operator_country)}` : ""}${c.airline && c.airline.alliance ? ` · ${esc(c.airline.alliance)}` : ""}</dd>
-          ${c.flying_for && c.flying_for !== c.operator ? `<dt>Flies for</dt><dd>${esc(c.flying_for_name || c.flying_for)}${c.operator || c.registered_owner ? "" : " (wet-lease, own airline unknown)"}</dd>` : ""}
+          ${c.flying_for && c.flying_for !== c.operator ? `<dt>Flies for</dt><dd>${esc(c.flying_for_name || c.flying_for)}${c.operator ? "" : " (wet-lease, own airline unknown)"}</dd>` : ""}
           <dt>First caught</dt><dd>${fmtTime(c.first_seen)}</dd>
           <dt>Last seen</dt><dd>${fmtTime(c.last_seen)}</dd>
           <dt>Closest pass</dt><dd>${fmtKm(c.closest_km)} km at ${fmtAlt(c.closest_alt_ft)} ft</dd>
