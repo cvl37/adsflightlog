@@ -91,6 +91,20 @@ class Home(unittest.TestCase):
         self.assertEqual(home.lookup(self.conn, "110001"), (True, "BIG"))
         self.assertEqual(home.lookup(self.conn, "200001"), (True, "FRN"))
 
+    def test_registered_owner_without_code(self):
+        # A police helicopter that sometimes flies coastguard (BIG) flights.
+        owners.store(self.conn, "100001", {"RegisteredOwners": "National Police Air Unit"})
+        # Owner name of a known airline from the same country, no code.
+        owners.store(self.conn, "100002", {"RegisteredOwners": "Big Regional B.V."})
+        # A lessor says nothing: keep the guess.
+        owners.store(self.conn, "100003", {"RegisteredOwners": "Sky Leasing Ltd"})
+        home.compute(self.conn, self.r, NOW)
+        self.assertEqual(home.lookup(self.conn, "100001"), (True, None))
+        why, ff = self.conn.execute("SELECT reason, flying_for FROM airframe_home WHERE hex='100001'").fetchone()
+        self.assertEqual((why, ff), ("registered to National Police Air Unit", "BIG"))
+        self.assertEqual(home.lookup(self.conn, "100002"), (True, "REG"))
+        self.assertEqual(home.lookup(self.conn, "100003"), (True, "BIG"))
+
     def test_registered_operator_ignored_after_reregistration(self):
         self.conn.execute("UPDATE ref_aircraft SET reg='Y-NEW' WHERE hex='200001'")
         owners.store(self.conn, "200001", {"Registration": "Y-OLD", "OperatorFlagCode": "BIG"})

@@ -9,7 +9,13 @@ airline it belongs to, not for every airline whose flight number it carried.
 For each civil airframe, in this order:
 
 1. The registered operator from hexdb.io (owners.py), if its registration
-   still matches: YR-ABA -> Carpatair, F-HBLJ -> HOP.
+   still matches: YR-ABA -> Carpatair, F-HBLJ -> HOP. When hexdb.io names
+   the owner but gives no airline code (PH-PXX -> "KLPD Police Aviation
+   Service"), the owner name is matched to an airline from the same country;
+   if none matches, the owner is not an airline and the airframe gets no home
+   airline (reason ``registered to <owner>``), even if it flies another
+   operator's callsign now and then (police helicopters on Kustwacht flights).
+   Lessors and "Private" don't count as owners here.
 2. The OpenSky operator, likewise (older data, fewer airframes), if that
    airline was heard flying at all in the window (OpenSky still lists defunct ones).
 
@@ -36,6 +42,7 @@ country of registry). ``home_overrides`` holds manual corrections, which win.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 import time
 
@@ -43,6 +50,23 @@ from .operators import OperatorResolver
 
 WINDOW_DAYS = 180
 MIN_SHARE = 0.10
+REGISTERED_TO = "registered to "
+# Registered owners that say nothing about who flies the aircraft.
+NOT_AN_OPERATOR = re.compile(r"^private$|leas|lessor|capital|financ|bank|trust|investment|holding", re.I)
+
+
+def _norm(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", name.lower()).strip()
+
+
+def match_owner(name: str, country: str | None, op_names: dict[str, tuple[str, str]]) -> str | None:
+    """Airline code whose name matches a registered owner name, same country only."""
+    n = _norm(name)
+    if not n or not country:
+        return None
+    hits = [o for o, (on, oc) in op_names.items()
+            if oc == country and on and (_norm(on) == n or f" {_norm(on)} " in f" {n} ")]
+    return min(hits) if len(hits) == 1 else None
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS airframe_home (
@@ -72,6 +96,8 @@ def pick(hx: str, heard: dict[str, int], ref_op: str | None, fleet_size: dict[st
     ``owner`` is (operator code, owner name) from hexdb.io; ``ref_op`` from OpenSky."""
     if owner and owner[0] in op_country:
         return owner[0], f"hexdb.io: {owner[1] or owner[0]}"
+    if owner and not owner[0] and owner[1] and not NOT_AN_OPERATOR.search(owner[1]):
+        return None, REGISTERED_TO + owner[1]
     # OpenSky's export is old: only trust airlines still flying (not Air Berlin).
     if ref_op and ref_op in op_country and fleet_size.get(ref_op, 0) > 0:
         return ref_op, "OpenSky operator"
@@ -132,7 +158,7 @@ def compute(conn: sqlite3.Connection, resolver: OperatorResolver, now: float | N
         # Skip answers for a previous registration (sold since the lookup).
         owners = {h: (o, n) for h, o, n in conn.execute(
             f"""SELECT w.hex, w.operator, w.owner FROM ref_owner w LEFT JOIN ref_aircraft r ON r.hex = w.hex
-                WHERE w.operator IS NOT NULL
+                WHERE (w.operator IS NOT NULL OR w.owner IS NOT NULL)
                   AND (r.reg IS NULL OR w.reg IS NULL OR {norm.format('r.reg')} = {norm.format('w.reg')})""")}
     military = {h for (h,) in conn.execute(
         "SELECT hex FROM ref_aircraft WHERE substr(flags, 1, 1) = '1' "
@@ -140,6 +166,11 @@ def compute(conn: sqlite3.Connection, resolver: OperatorResolver, now: float | N
     caught = {h for (h,) in conn.execute("SELECT hex FROM airframes")}
     overrides = dict(conn.execute("SELECT hex, operator FROM home_overrides"))
     op_country = {o: c for o, (_, c) in resolver.ops.items()}
+    for hx, (code, name) in list(owners.items()):
+        if not code and name:   # owner named, no airline code: is it an airline we know?
+            m = match_owner(name, resolver.country(hx), resolver.ops)
+            if m:
+                owners[hx] = (m, name)
 
     rows = []
     for hx in set(heard) | set(overrides) | (set(owners) & caught):
