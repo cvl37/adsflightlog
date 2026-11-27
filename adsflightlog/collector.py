@@ -17,6 +17,7 @@ from . import config as cfgmod
 from .db import connect
 from . import refdb
 from .tracks import Tracker
+from . import fleet
 
 AIRLINE_CALLSIGN = re.compile(r"^([A-Z]{3})\d")
 
@@ -104,6 +105,7 @@ class Collector:
         self.conn = conn
         self.log = log
         self.tracker = Tracker(conn, cfg.track_before_s, cfg.track_after_s, log=log)
+        self.spotter = fleet.Spotter(conn)
 
     def poll_once(self, now: float | None = None) -> int:
         data = json.loads(self.cfg.aircraft_json.read_text())
@@ -114,7 +116,15 @@ class Collector:
                 hx = (ac.get("hex") or "").lower()
                 if not hx or hx.startswith("~"):  # '~' = non-ICAO (TIS-B) address
                     continue
-                if "lat" not in ac or ac.get("seen_pos", 0) > self.cfg.max_position_age_s:
+                fresh = "lat" in ac and ac.get("seen_pos", 0) <= self.cfg.max_position_age_s
+                if ac.get("seen", 0) <= 60:
+                    # Fleet/spotting log: every aircraft heard, at any distance.
+                    self.spotter.observe(
+                        hx, now,
+                        haversine_km(self.cfg.lat, self.cfg.lon, ac["lat"], ac["lon"]) if fresh else None,
+                        (ac.get("flight") or "").strip() or None,
+                    )
+                if not fresh:
                     continue
                 dist = in_range(self.cfg, ac)
                 pos_t = now - ac.get("seen_pos", 0)
@@ -126,6 +136,7 @@ class Collector:
                 self.tracker.attach(hx, sid, now)
                 hits += 1
         self.tracker.tick(now)
+        self.spotter.maybe_flush(now)
         return hits
 
     def record(self, hx: str, ac: dict, dist: float, now: float) -> int:
@@ -228,6 +239,7 @@ def main() -> None:
     cfg = cfgmod.load(sys.argv[1] if len(sys.argv) > 1 else None)
     conn = connect(cfg.database)
     refdb.update(conn, cfg, log=lambda m: print(m, flush=True))
+    fleet.update_opensky(conn, log=lambda m: print(m, flush=True))
 
     print(f"collector: receiver {cfg.lat:.4f},{cfg.lon:.4f}; zones: "
           + "; ".join(f"{z.name} ({z.describe()})" for z in cfg.zones), flush=True)
@@ -251,8 +263,10 @@ def main() -> None:
         if time.time() - last_ref_check > 6 * 3600:
             last_ref_check = time.time()
             refdb.update(conn, cfg, log=lambda m: print(m, flush=True))
+            fleet.update_opensky(conn, log=lambda m: print(m, flush=True))
         time.sleep(cfg.poll_interval_s)
     col.tracker.flush()
+    col.spotter.flush()
     print("collector: stopped, tracks saved", flush=True)
 
 

@@ -61,6 +61,23 @@ Changes to the zones apply from then on. Cards you already collected stay in you
 
 Run the zone geometry tests with `python3 -m unittest discover -s tests -t .`.
 
+## Binder pages: fleets, manufacturers and types
+
+Besides the **All cards** view, the binder has pages per **airline/operator**, **manufacturer** and **aircraft type**. You only get pages you hold at least one card for. Each page shows your cards plus an **empty sleeve** for every airframe you could still catch, with a progress bar.
+
+Where the empty sleeves come from:
+
+- **Spotting log (your receiver).** Every aircraft the receiver hears is logged, at any distance and not just in your zones, along with every airline callsign it flies under (`spotted`, `spotted_ops`). Writes are batched every 5 minutes.
+  - An airframe heard flying as e.g. KLM in the last 180 days is a **confirmed** member of KLM's fleet.
+  - Manufacturer and type pages show airframes your receiver has heard but you haven't caught yet.
+- **OpenSky seed list.** The OpenSky Network aircraft database (crowdsourced, "as is") lists an operator for about 50k airframes, but its last full export is older (currently August 2025). It is imported once and re-checked monthly (`ref_fleet`). Two kinds of entries are dropped:
+  - airframes re-registered since the export;
+  - airframes recently heard flying for another airline.
+  Of the rest, entries of a type the airline is known to fly show as "not yet heard". Others are **unconfirmed**: hidden by default, because they're often retired aircraft.
+- **Hiding.** If a sleeve is wrong (e.g. an aircraft that has left the fleet), hide it with its × button.
+
+Airfleets.net and Planespotters.net were considered, but they don't permit automated access, so they aren't used.
+
 ## Flight paths
 
 Each sighting stores the aircraft's flight path as raw positions, not images. The path covers the time before it entered your catch zones, every position while inside them, and the time after it left. You set how much in `config.toml`:

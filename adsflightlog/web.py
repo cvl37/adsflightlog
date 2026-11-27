@@ -12,7 +12,7 @@ import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from . import config as cfgmod
 from .cards import POINTS, TIERS, build_cards
@@ -20,6 +20,7 @@ from .collector import altitude, in_range
 from .db import connect
 from .logos import Logos
 from . import tracks
+from . import fleet
 
 STATIC = cfgmod.ROOT / "web"
 
@@ -40,6 +41,7 @@ class App:
     def conn(self):
         c = connect(self.cfg.database)
         c.executescript(tracks.SCHEMA)
+        c.executescript(fleet.SCHEMA)
         return c
 
     def cards(self) -> list[dict]:
@@ -137,6 +139,101 @@ class App:
                 },
             }],
         }
+
+    # ---------- binder pages ----------
+    @staticmethod
+    def _progress(rows: list[dict]) -> dict:
+        counted = [r for r in rows if not r.get("hidden") and r["status"] != "unconfirmed"]
+        return {
+            "collected": sum(r["collected"] for r in rows),
+            "total": len(counted) + sum(1 for r in rows if r["collected"] and (r.get("hidden") or r["status"] == "unconfirmed")),
+            "unconfirmed": sum(1 for r in rows if r["status"] == "unconfirmed" and not r["collected"] and not r.get("hidden")),
+            "hidden": sum(1 for r in rows if r.get("hidden") and not r["collected"]),
+        }
+
+    def binder_airlines(self) -> list[dict]:
+        cards = self.cards()
+        ops = {}
+        for c in cards:
+            if c["operator"]:
+                ops.setdefault(c["operator"], c)
+        out = []
+        with self.conn() as conn:
+            for op, c in ops.items():
+                rows = fleet.airline_fleet(conn, op)
+                out.append({
+                    "key": op, "name": (c.get("airline") or {}).get("name") or c.get("operator_name") or op,
+                    "airline": c.get("airline"), **self._progress(rows),
+                })
+        return sorted(out, key=lambda e: (-e["collected"], e["name"]))
+
+    def binder_airline(self, op: str) -> dict:
+        op = op.upper()
+        with self.conn() as conn:
+            rows = fleet.airline_fleet(conn, op)
+            o = conn.execute("SELECT * FROM ref_operators WHERE icao=?", (op,)).fetchone()
+        info = self.logos.info(op)
+        return {
+            "key": op, "kind": "airline",
+            "name": (info or {}).get("name") or (o["name"] if o else op),
+            "subtitle": " · ".join(x for x in [o["country"] if o else None,
+                                                 (info or {}).get("alliance"),
+                                                 f"ICAO {op}"] if x),
+            "airline": info, "rows": rows, **self._progress(rows),
+        }
+
+    def _spotted_all(self) -> list[dict]:
+        with self.conn() as conn:
+            rows = fleet.spotted_by(conn, "1", ())
+        for r in rows:
+            r["manufacturer"] = fleet.manufacturer(r["type_name"]) if r["type"] else "Unknown"
+        return rows
+
+    def binder_groups(self, by: str) -> list[dict]:
+        key = "manufacturer" if by == "manufacturer" else "type"
+        rows = self._spotted_all()
+        have = {r[key] for r in rows if r["collected"] and r[key]}
+        groups: dict[str, dict] = {}
+        for r in rows:
+            k = r[key]
+            if k not in have:
+                continue
+            g = groups.setdefault(k, {"key": k, "name": k, "collected": 0, "total": 0, "types": set()})
+            if by == "type":
+                g["name"] = r["type_name"] or r["model"] or k
+                g["manufacturer"] = r["manufacturer"]
+            g["collected"] += r["collected"]
+            g["total"] += 1
+            if r["type"]:
+                g["types"].add(r["type"])
+        for g in groups.values():
+            g["types"] = sorted(g["types"])
+        return sorted(groups.values(), key=lambda g: (-g["collected"], g["name"]))
+
+    def binder_group(self, by: str, k: str) -> dict:
+        key = "manufacturer" if by == "manufacturer" else "type"
+        rows = [r for r in self._spotted_all() if (r[key] or "").lower() == k.lower()]
+        with self.conn() as conn:
+            names = {o["icao"]: o["name"] for o in conn.execute("SELECT icao, name FROM ref_operators")}
+        for r in rows:
+            if r["operator"]:
+                r["operator_name"] = (self.logos.info(r["operator"]) or {}).get("name") or names.get(r["operator"])
+        name = k
+        if by == "type" and rows:
+            name = rows[0]["type_name"] or rows[0]["model"] or k
+        return {
+            "key": k, "kind": by, "name": name,
+            "subtitle": f"{len(rows)} airframes heard by your receiver" if rows else "",
+            "rows": rows, "collected": sum(r["collected"] for r in rows), "total": len(rows),
+            "unconfirmed": 0, "hidden": 0,
+        }
+
+    def set_hidden(self, op: str, hx: str, hidden: bool) -> None:
+        with self.conn() as conn:
+            if hidden:
+                conn.execute("INSERT OR IGNORE INTO fleet_hidden VALUES (?,?)", (op.upper(), hx.lower()))
+            else:
+                conn.execute("DELETE FROM fleet_hidden WHERE operator=? AND hex=?", (op.upper(), hx.lower()))
 
     def types(self) -> list[dict]:
         out: dict[str, dict] = {}
@@ -236,6 +333,16 @@ def make_handler(app: App):
                         return
                     tr = app.track(sid)
                     return self._json(tr) if tr else self._json({"error": "not found"}, 404)
+                if p == "/api/binder/airlines":
+                    return self._json(app.binder_airlines())
+                if p in ("/api/binder/manufacturers", "/api/binder/types"):
+                    return self._json(app.binder_groups("manufacturer" if "manuf" in p else "type"))
+                m = re.fullmatch(r"/api/binder/(airline|manufacturer|type)/([^/]+)", p)
+                if m:
+                    k = unquote(m.group(2))
+                    if m.group(1) == "airline":
+                        return self._json(app.binder_airline(k))
+                    return self._json(app.binder_group(m.group(1), k))
                 if p == "/api/types":
                     return self._json(app.types())
                 if p == "/api/operators":
@@ -275,6 +382,22 @@ def make_handler(app: App):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+
+        def do_POST(self):
+            m = re.fullmatch(r"/api/binder/airline/([A-Za-z]{3})/hide", urlparse(self.path).path)
+            if not m:
+                self.send_error(404)
+                return
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+                body = json.loads(self.rfile.read(min(n, 4096)) or b"{}")
+                hx = str(body.get("hex", ""))
+                if not re.fullmatch(r"[0-9a-fA-F]{6}", hx):
+                    raise ValueError("bad hex")
+                app.set_hidden(m.group(1), hx, bool(body.get("hidden", True)))
+                return self._json({"ok": True})
+            except (ValueError, json.JSONDecodeError) as e:
+                return self._json({"error": str(e)}, 400)
 
     return Handler
 

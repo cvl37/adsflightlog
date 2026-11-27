@@ -33,6 +33,14 @@
 
 <main>
   <section id="binder" class="panel active">
+    <div class="subnav" role="tablist">
+      <button data-view="all" class="active">All cards</button>
+      <button data-view="airline">Airlines</button>
+      <button data-view="manufacturer">Manufacturers</button>
+      <button data-view="type">Types</button>
+    </div>
+    <div id="binder-pages" hidden></div>
+    <div id="binder-all">
     <div class="toolbar">
       <input id="search" type="search" placeholder="Search reg, type, airline, callsign…">
       <select id="rarity-filter">
@@ -53,6 +61,7 @@
     </div>
     <div id="cards" class="grid"></div>
     <p id="empty" class="empty" hidden>No cards yet. Leave the collector running: every aircraft that flies inside your radius becomes a card.</p>
+    </div>
   </section>
 
   <section id="dex" class="panel">

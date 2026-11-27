@@ -70,6 +70,7 @@ function cardHTML(c) {
 let CARDS = [];
 let SUMMARY = null;
 let MAP = null;
+const BINDER = { view: "all", key: null, showUnconfirmed: false, showHidden: false, page: null };
 
 function renderBinder() {
   const q = $("#search").value.trim().toLowerCase();
@@ -301,3 +302,135 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal
 refresh();
 setInterval(refresh, 30000);
 setInterval(() => { if ($(".tabs .active").dataset.tab === "live") renderLive(); }, 5000);
+
+
+// ---------- binder pages (airline / manufacturer / type) ----------
+const ago = (t) => {
+  if (!t) return "";
+  const s = Date.now() / 1000 - t;
+  return s < 3600 ? `${Math.max(1, Math.round(s / 60))} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} d ago`;
+};
+const pct = (a, b) => (b ? Math.round((100 * a) / b) : 0);
+
+function progressHTML(c, t) {
+  return `<div class="prog"><div class="bar"><div style="width:${pct(c, t)}%"></div></div><span>${c} / ${t}</span></div>`;
+}
+
+function setBinderView(view, key = null) {
+  BINDER.view = view; BINDER.key = key;
+  document.querySelectorAll(".subnav button").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+  $("#binder-all").hidden = view !== "all";
+  $("#binder-pages").hidden = view === "all";
+  if (view === "all") return;
+  key ? renderBinderPage(view, key) : renderBinderIndex(view);
+}
+
+async function renderBinderIndex(view) {
+  const url = { airline: "/api/binder/airlines", manufacturer: "/api/binder/manufacturers", type: "/api/binder/types" }[view];
+  const list = await api(url);
+  const hint = {
+    airline: "One page per airline or operator you hold at least one card from. Empty sleeves are fleet members you haven't caught yet.",
+    manufacturer: "Every manufacturer you hold a card from. Empty sleeves are aircraft your receiver has heard but you haven't caught.",
+    type: "Every aircraft type you hold a card from. Empty sleeves are aircraft your receiver has heard but you haven't caught.",
+  }[view];
+  $("#binder-pages").innerHTML = `<p class="hint">${hint}</p><div class="spines">${list.map((g) => {
+    const al = g.airline;
+    const badge = view === "airline"
+      ? (al && al.icon
+        ? `<div class="crest logo" style="--brand:${esc(al.color || "#fff")}">${logoImg(g.key, "icon", "")}<span>${esc(g.key)}</span></div>`
+        : `<div class="crest" style="background:hsl(${hue(g.key)} 55% 40%)">${esc(g.key)}</div>`)
+      : `<div class="crest" style="background:hsl(${hue(g.key)} 35% 30%)">${view === "type" ? esc(g.key) : esc(g.name.slice(0, 3).toUpperCase())}</div>`;
+    const sub = view === "airline"
+      ? (g.unconfirmed ? `+${g.unconfirmed} unconfirmed` : "")
+      : view === "manufacturer" ? `${g.types.length} type${g.types.length === 1 ? "" : "s"}` : esc(g.manufacturer || "");
+    return `<button class="spine" data-key="${esc(g.key)}">${badge}
+      <div class="spine-body"><div class="nm">${esc(g.name)}</div><div class="meta">${sub}</div>${progressHTML(g.collected, g.total)}</div></button>`;
+  }).join("")}</div>`;
+  $("#binder-pages").querySelectorAll(".spine").forEach((b) => b.addEventListener("click", () => setBinderView(view, b.dataset.key)));
+}
+
+function sleeveHTML(r, view, pageKey) {
+  if (r.collected) {
+    const card = CARDS.find((c) => c.hex === r.hex);
+    if (card) return cardHTML(card);
+  }
+  const model = r.type_name || r.model || r.type || "Unknown type";
+  const meta = r.spotted_last
+    ? `heard ${ago(r.spotted_last)}${r.spotted_min_km != null ? ` · closest ${fmtKm(r.spotted_min_km)} km` : ""}`
+    : r.in_opensky ? "listed in OpenSky fleet data" : "";
+  const tag = r.status === "unconfirmed" ? `<span class="s-tag">unconfirmed</span>`
+    : r.status === "listed" ? `<span class="s-tag soft">not yet heard</span>` : "";
+  const hide = view === "airline"
+    ? `<button class="s-hide" data-hex="${esc(r.hex)}" data-hidden="${r.hidden ? 1 : 0}" title="${r.hidden ? "Put back in this fleet" : "Not in this fleet (any more)"}">${r.hidden ? "restore" : "×"}</button>`
+    : "";
+  return `<div class="sleeve ${r.status}${r.hidden ? " hidden-sleeve" : ""}">
+    ${hide}
+    <div class="s-art">${svg(artFor(r))}</div>
+    <div class="s-reg">${esc(r.reg || r.hex.toUpperCase())}</div>
+    <div class="s-type">${esc(model)}</div>
+    ${view === "manufacturer" && r.operator ? `<div class="s-meta">${esc(r.operator_name || r.operator)}</div>` : ""}
+    <div class="s-meta">${meta}</div>${tag}
+  </div>`;
+}
+
+function artFor(r) {
+  const d = r.desc || "";
+  if ("HGT".includes(d[0]) && d) return "heli";
+  if (d[2] === "J") return "468".includes(d[1]) ? "quad" : "jet";
+  if (d[2] === "P" || d[2] === "T") return "prop";
+  return "jet";
+}
+
+async function renderBinderPage(view, key) {
+  const d = await api(`/api/binder/${view}/${encodeURIComponent(key)}`);
+  BINDER.page = d;
+  drawBinderPage();
+}
+
+function drawBinderPage() {
+  const d = BINDER.page, view = BINDER.view;
+  const rows = d.rows.filter((r) => r.collected
+    || ((BINDER.showUnconfirmed || r.status !== "unconfirmed") && (BINDER.showHidden || !r.hidden)));
+  // group: airline/manufacturer pages by type, type pages by operator
+  const gkey = (r) => (view === "type" ? (r.operator_name || r.operator || "Other / private") : r.type || "?");
+  const groups = {};
+  rows.forEach((r) => (groups[gkey(r)] ||= []).push(r));
+  const ordered = Object.entries(groups).sort((a, b) =>
+    b[1].filter((r) => r.collected).length - a[1].filter((r) => r.collected).length || b[1].length - a[1].length);
+  const al = d.airline;
+  const head = `
+    <div class="page-head">
+      <button class="back">← All ${view === "airline" ? "airlines" : view === "type" ? "types" : "manufacturers"}</button>
+      <div class="page-title">
+        ${al && al.logo ? `<div class="logo-plate">${logoImg(d.key, "logo", "logo-full")}</div>` : ""}
+        <div><h2>${esc(d.name)}</h2><div class="muted">${esc(d.subtitle || "")}</div></div>
+      </div>
+      <div class="page-prog">${progressHTML(d.collected, d.total)}<div class="muted">${pct(d.collected, d.total)}% collected</div></div>
+    </div>
+    ${view === "airline" ? `<div class="page-tools">
+      <label><input type="checkbox" id="opt-unconf" ${BINDER.showUnconfirmed ? "checked" : ""}> Show unconfirmed (${d.unconfirmed})</label>
+      <label><input type="checkbox" id="opt-hidden" ${BINDER.showHidden ? "checked" : ""}> Show hidden (${d.hidden})</label>
+      <span class="muted">Confirmed = heard flying as ${esc(d.key)} in the last 180 days. Unconfirmed = only in older OpenSky data.</span>
+    </div>` : ""}`;
+  const body = ordered.map(([g, rs]) => {
+    rs.sort((a, b) => b.collected - a.collected || (a.reg || "").localeCompare(b.reg || ""));
+    const label = view === "type" ? g : `${g} · ${esc(rs[0].type_name || rs[0].model || "")}`;
+    return `<section class="page-group"><h3>${esc(label)} <span class="muted">${rs.filter((r) => r.collected).length} / ${rs.length}</span></h3>
+      <div class="grid">${rs.map((r) => sleeveHTML(r, view, d.key)).join("")}</div></section>`;
+  }).join("");
+  $("#binder-pages").innerHTML = head + (body || `<p class="empty">Nothing here yet.</p>`);
+  const root = $("#binder-pages");
+  root.querySelector(".back").addEventListener("click", () => setBinderView(view));
+  root.querySelector("#opt-unconf")?.addEventListener("change", (e) => { BINDER.showUnconfirmed = e.target.checked; drawBinderPage(); });
+  root.querySelector("#opt-hidden")?.addEventListener("change", (e) => { BINDER.showHidden = e.target.checked; drawBinderPage(); });
+  root.querySelectorAll(".card").forEach((c) => c.addEventListener("click", () => openCard(c.dataset.hex)));
+  root.querySelectorAll(".s-hide").forEach((b) => b.addEventListener("click", async () => {
+    await fetch(`/api/binder/airline/${encodeURIComponent(d.key)}/hide`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hex: b.dataset.hex, hidden: b.dataset.hidden !== "1" }),
+    });
+    renderBinderPage("airline", d.key);
+  }));
+}
+
+document.querySelectorAll(".subnav button").forEach((b) => b.addEventListener("click", () => setBinderView(b.dataset.view)));
