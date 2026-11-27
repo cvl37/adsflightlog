@@ -72,6 +72,9 @@ The SQLite database is at `data/adsflightlog.db` (git-ignored). It has three kin
 
 - `airframes`: the cards.
 - `sightings`: each visit inside the radius.
-- `ref_*`: reference data imported from tar1090's Mictronics database. It is
-  refreshed automatically when tar1090's database updates. To refresh it by
-  hand, run `python3 -m adsflightlog.refdb`.
+- `ref_*`: reference data. Registrations and types come from the latest
+  [tar1090-db](https://github.com/wiedehopf/tar1090-db) (Mictronics) release.
+  It is downloaded to `data/aircraft.csv.gz` and refreshed weekly, because
+  tar1090's bundled copy goes stale. Type and airline names come from tar1090's
+  local files. Whenever the data updates, cards caught as "unidentified" are
+  filled in. To force a refresh, run `python3 -m adsflightlog.refdb --force`.
