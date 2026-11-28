@@ -8,6 +8,11 @@ airline it belongs to, not for every airline whose flight number it carried.
 
 For each civil airframe, in this order:
 
+0. Helicopters: the operator on helispot.nl (helispot.py), matched by current
+   registration: PH-HLP -> ANWB Medical Air Assistance, PH-PXX ->
+   Luchtvaartpolitie. Matched to an airline code from the same country when
+   one fits; otherwise the card shows the name (reason ``operated by <name>``)
+   and, as with step 1, the airframe has no home airline.
 1. The registered operator from hexdb.io (owners.py), if its registration
    still matches: YR-ABA -> Carpatair, F-HBLJ -> HOP. When hexdb.io names
    the owner but gives no airline code (PH-PXX -> "KLPD Police Aviation
@@ -47,11 +52,13 @@ import re
 import sqlite3
 import time
 
+from . import helispot
 from .operators import OperatorResolver
 
 WINDOW_DAYS = 180
 MIN_SHARE = 0.10
 REGISTERED_TO = "registered to "
+OPERATED_BY = "operated by "
 # Registered owners that say nothing about who flies the aircraft.
 NOT_AN_OPERATOR = re.compile(r"^private$|leas|lessor|capital|financ|bank|trust|investment|holding", re.I)
 
@@ -92,9 +99,15 @@ def _table(conn: sqlite3.Connection, name: str) -> bool:
 
 def pick(hx: str, heard: dict[str, int], ref_op: str | None, fleet_size: dict[str, int],
          op_country: dict[str, str], reg_country: str | None,
-         owner: tuple[str, str | None] | None = None) -> tuple[str | None, str]:
+         owner: tuple[str, str | None] | None = None,
+         heli: tuple[str | None, str] | None = None) -> tuple[str | None, str]:
     """Choose the home operator. ``heard`` is {operator: days heard flying for it};
+    ``heli`` is (operator code or None, name) from helispot.nl;
     ``owner`` is (operator code, owner name) from hexdb.io; ``ref_op`` from OpenSky."""
+    if heli and heli[0] in op_country:
+        return heli[0], f"helispot.nl: {heli[1]}"
+    if heli and not NOT_AN_OPERATOR.search(heli[1]):
+        return None, OPERATED_BY + heli[1]
     if owner and owner[0] in op_country:
         return owner[0], f"hexdb.io: {owner[1] or owner[0]}"
     if owner and not owner[0] and owner[1] and not NOT_AN_OPERATOR.search(owner[1]):
@@ -173,8 +186,12 @@ def compute(conn: sqlite3.Connection, resolver: OperatorResolver, now: float | N
             if m:
                 owners[hx] = (m, name)
 
+    helis = {}
+    for hx, name in helispot.operators(conn).items():
+        helis[hx] = (match_owner(name, resolver.country(hx), resolver.ops), name)
+
     rows = []
-    for hx in set(heard) | set(overrides) | (set(owners) & caught):
+    for hx in set(heard) | set(overrides) | ((set(owners) | set(helis)) & caught):
         h = heard.get(hx, {})
         top = max(h, key=lambda o: (h[o], o)) if h else None
         if hx in overrides:
@@ -182,8 +199,9 @@ def compute(conn: sqlite3.Connection, resolver: OperatorResolver, now: float | N
             continue
         if hx in military:
             continue
-        op, why = pick(hx, h, ref.get(hx), fleet_size, op_country, resolver.country(hx), owners.get(hx))
-        if why.startswith(REGISTERED_TO):
+        op, why = pick(hx, h, ref.get(hx), fleet_size, op_country, resolver.country(hx), owners.get(hx),
+                       helis.get(hx))
+        if why.startswith((REGISTERED_TO, OPERATED_BY)):
             top = None   # not an airline's aircraft: an odd flight under one's callsign is incidental
         if op or why:
             rows.append((hx, op, top, why, now))

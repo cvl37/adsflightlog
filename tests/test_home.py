@@ -4,7 +4,7 @@ import time
 import unittest
 from pathlib import Path
 
-from adsflightlog import fleet, home, owners
+from adsflightlog import fleet, helispot, home, owners
 from adsflightlog.db import connect
 from adsflightlog.operators import OperatorResolver
 
@@ -104,6 +104,45 @@ class Home(unittest.TestCase):
         self.assertEqual((why, ff), ("registered to National Police Air Unit", None))
         self.assertEqual(home.lookup(self.conn, "100002"), (True, "REG"))
         self.assertEqual(home.lookup(self.conn, "100003"), (True, "BIG"))
+
+    def test_helispot_operator_comes_first(self):
+        c = self.conn
+        c.execute("INSERT INTO airframes (hex, card_no, reg, type, operator, first_seen, last_seen) "
+                  "VALUES ('100005', 2, 'X-HLP', 'EC35', NULL, ?, ?)", (NOW, NOW))
+        c.execute("UPDATE ref_aircraft SET reg='X-POL' WHERE hex='100001'")
+        owners.store(c, "100001", {"RegisteredOwners": "National Police Air Unit"})
+        helispot.store(c, [
+            {"reg": "X-HLP", "operator": "Medical Air Assistance BV", "raw": "", "page": "", "cancelled": False, "crashed": False},
+            {"reg": "XPOL", "operator": "Air Police", "raw": "", "page": "", "cancelled": False, "crashed": False},
+            # struck off: says nothing about the current owner of the hex
+            {"reg": "Y-AAA", "operator": "Old Heli Co", "raw": "", "page": "", "cancelled": True, "crashed": False},
+        ], NOW)
+        home.compute(c, self.r, NOW)
+        why = lambda h: c.execute("SELECT operator, reason FROM airframe_home WHERE hex=?", (h,)).fetchone()
+        self.assertEqual(tuple(why("100005")), (None, "operated by Medical Air Assistance BV"))
+        self.assertEqual(tuple(why("100001")), (None, "operated by Air Police"))
+        self.assertEqual(home.lookup(c, "200001"), (True, "FRN"))
+
+    def test_helispot_name_cleaning(self):
+        for raw, want in [
+            ("ANWB Medical Air Assistance BV, Lelystad (voor RAV)", "ANWB Medical Air Assistance BV"),
+            ("Heli & Co, Liege (B) - owner TECAIR Arcangues (FR)", "Heli & Co"),
+            ("Heliair, eigenaar Top Motion Works, Odijk (NL)", "Heliair"),
+            ("Heli Luxembourg (owner: Tradlux SA)", "Heli Luxembourg"),
+            ("Helihansa (AU) - Startrade (D)", "Helihansa"),
+            ("Luchtvaartpolitie NL", "Luchtvaartpolitie NL"),
+            ("Bristow Helicopters ", "Bristow Helicopters"),
+        ]:
+            self.assertEqual(helispot.clean_operator(raw), want)
+
+    def test_helispot_page_parsing(self):
+        page = ('<article class="post heli-card"><h3 class="heli-callsign"><a href="/helicopter/gMZZzm">PH-HLP</a></h3>'
+                '<p class="heli-operator">ANWB Medical Air Assistance BV, Lelystad</p></article>'
+                '<article class="post heli-card is-unsubscribed"><h3><a href="/helicopter/xqlrp6">PH-ULP</a>'
+                '<span class="heli-badge cancelled">doorgehaald</span></h3><p class="heli-operator">ANWB</p></article>')
+        a, b = helispot.parse_model_page(page)
+        self.assertEqual((a["reg"], a["operator"], a["cancelled"]), ("PH-HLP", "ANWB Medical Air Assistance BV", False))
+        self.assertEqual((b["reg"], b["cancelled"]), ("PH-ULP", True))
 
     def test_registered_operator_ignored_after_reregistration(self):
         self.conn.execute("UPDATE ref_aircraft SET reg='Y-NEW' WHERE hex='200001'")

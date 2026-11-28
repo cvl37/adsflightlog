@@ -32,8 +32,9 @@ CARD_SQL = """
 SELECT a.*, t.name AS type_name, t.desc AS desc, t.wtc AS wtc,
        o.name AS operator_name, o.country AS operator_country, o.callsign AS operator_callsign,
        h.flying_for, h.reason AS home_reason, fo.name AS flying_for_name,
-       CASE WHEN h.operator IS NULL AND h.reason LIKE 'registered to %'
-            THEN substr(h.reason, 15) END AS registered_owner
+       CASE WHEN h.operator IS NULL AND h.reason LIKE 'registered to %' THEN substr(h.reason, 15)
+            WHEN h.operator IS NULL AND h.reason LIKE 'operated by %' THEN substr(h.reason, 13)
+       END AS registered_owner
 FROM airframes a
 LEFT JOIN ref_types t ON t.type = a.type
 LEFT JOIN ref_operators o ON o.icao = a.operator
