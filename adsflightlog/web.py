@@ -213,6 +213,36 @@ class App:
             ]
         return card
 
+    def log(self, before: float | None = None, limit: int = 200) -> dict:
+        """Every counted sighting, newest first; page backwards with `before` (a start time)."""
+        limit = max(1, min(limit, 1000))
+        cards = {}
+        for c in self.cards():   # current edition per airframe wins
+            if c["hex"] not in cards or not c.get("retired"):
+                cards[c["hex"]] = c
+        with self.conn() as c:
+            rows = [dict(r) for r in c.execute(
+                """SELECT s.id, s.hex, s.callsign, s.start, s.end, s.min_dist_km, s.min_alt_ft,
+                          s.max_alt_ft, s.max_gs_kt, t.n AS track_points,
+                          s.start = (SELECT MIN(s2.start) FROM sightings s2 WHERE s2.hex = s.hex) AS first_catch
+                   FROM sightings s LEFT JOIN sighting_tracks t ON t.sighting_id = s.id
+                   WHERE s.start < ? ORDER BY s.start DESC, s.id DESC LIMIT ?""",
+                (before if before is not None else float("inf"), limit + 1))]
+            total = c.execute("SELECT COUNT(*) FROM sightings").fetchone()[0]
+        more = len(rows) > limit
+        rows = rows[:limit]
+        for r in rows:
+            card = cards.get(r["hex"]) or {}
+            al = card.get("airline") or {}
+            r.update({
+                "card_no": card.get("card_no"), "edition": card.get("edition"),
+                "reg": card.get("reg"), "type": card.get("type"), "rarity": card.get("rarity"),
+                "operator": card.get("operator"),
+                "operator_name": al.get("name") or card.get("operator_name") or card.get("registered_owner"),
+                "first_catch": bool(r["first_catch"]),
+            })
+        return {"rows": rows, "total": total, "more": more}
+
     def track(self, sighting_id: int) -> dict | None:
         with self.conn() as c:
             s = c.execute("SELECT * FROM sightings WHERE id=?", (sighting_id,)).fetchone()
@@ -463,6 +493,12 @@ def make_handler(app: App):
                     return self._json(app.operators())
                 if p == "/api/live":
                     return self._json(app.live())
+                if p == "/api/log":
+                    q = parse_qs(url.query)
+                    before = q.get("before", [None])[0]
+                    limit = q.get("limit", ["200"])[0]
+                    return self._json(app.log(float(before) if before else None,
+                                              int(limit) if limit.isdigit() else 200))
                 if p.startswith("/logo/"):
                     # /logo/<ICAO>/<variant>.svg — cached Soaring Symbols mark
                     parts = p.split("/")

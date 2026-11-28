@@ -29,6 +29,7 @@
   <button role="tab" data-tab="dex"><span class="lbl-long">Type dex</span><span class="lbl-short">Dex</span></button>
   <button role="tab" data-tab="airlines">Airlines</button>
   <button role="tab" data-tab="live"><span class="lbl-long">In range now</span><span class="lbl-short">Live</span> <span id="live-count" class="pill">0</span></button>
+  <button role="tab" data-tab="log">Log</button>
 </nav>
 
 <main>
@@ -77,6 +78,18 @@
 
   <section id="airlines" class="panel">
     <div id="airline-list" class="airlines"></div>
+  </section>
+
+  <section id="log" class="panel">
+    <div class="toolbar">
+      <input id="log-search" type="search" placeholder="Filter callsign, reg, type, airline…">
+    </div>
+    <p class="hint" id="log-hint"></p>
+    <div class="table-wrap"><table class="log">
+      <thead><tr><th>Time</th><th>Callsign</th><th>Reg.</th><th class="col-type">Type</th><th class="col-op">Airline</th><th class="num">Closest</th><th class="num">Alt.</th><th class="num col-speed">Speed</th><th class="num col-dur">In zone</th><th>Card</th></tr></thead>
+      <tbody id="log-body"></tbody>
+    </table></div>
+    <p class="load-more"><button id="log-more" hidden>Load older sightings</button></p>
   </section>
 
   <section id="live" class="panel">

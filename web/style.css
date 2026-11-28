@@ -200,6 +200,18 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .live .yes { color: var(--uncommon); }
 .live .catch { color: var(--accent); font-weight: 700; }
 
+/* ---------- log ---------- */
+table.log { width: 100%; }
+table.log td { white-space: nowrap; }
+table.log td.col-op { white-space: normal; }
+table.log tbody tr[data-hex] { cursor: pointer; }
+table.log tbody tr[data-hex]:hover { background: rgba(255,255,255,.04); }
+table.log tr.day td { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; padding-top: 16px; border-bottom: 1px solid var(--line); }
+table.log .time { font-variant-numeric: tabular-nums; color: var(--muted); }
+table.log .tier { font: 700 12px ui-monospace, monospace; }
+table.log .badge { position: static; display: inline-block; }
+.load-more { text-align: center; margin: 16px 0; }
+
 /* ---------- airline marks (Soaring Symbols) ---------- */
 .art.branded {
   background:
@@ -389,6 +401,8 @@ body.modal-open { overflow: hidden; }
   table.sightings { min-width: 460px; }
 
   .live .col-hex, .live .col-speed { display: none; }
+  .log .col-type, .log .col-op, .log .col-speed, .log .col-dur, .log .alt-hi { display: none; }
+  table.log .badge { font-size: 0; width: 8px; height: 8px; padding: 0; border-radius: 50%; vertical-align: middle; }
   .credit { padding: 0 16px 24px; }
 }
 

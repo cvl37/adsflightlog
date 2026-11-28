@@ -162,6 +162,49 @@ async function renderLive() {
     </tr>`).join("");
 }
 
+const LOG = { rows: [], more: false, total: 0 };
+const fmtDay = (t) => new Date(t * 1000).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+const fmtHM = (t) => new Date(t * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
+const altRange = (a, b) => { const lo = fmtAlt(a), hi = fmtAlt(b); return lo === hi ? lo : `${lo}<span class="alt-hi">–${hi}</span>`; };
+
+async function loadLog(older = false) {
+  const before = older && LOG.rows.length ? `&before=${LOG.rows[LOG.rows.length - 1].start}` : "";
+  const d = await api(`/api/log?limit=200${before}`);
+  LOG.rows = older ? LOG.rows.concat(d.rows) : d.rows;
+  LOG.more = d.more;
+  LOG.total = d.total;
+  drawLog();
+}
+
+function drawLog() {
+  const q = $("#log-search").value.trim().toLowerCase();
+  const rows = q ? LOG.rows.filter((r) => [r.callsign, r.reg, r.hex, r.type, r.operator, r.operator_name]
+    .some((v) => v && String(v).toLowerCase().includes(q))) : LOG.rows;
+  let day = null, html = "";
+  for (const r of rows) {
+    const d = new Date(r.start * 1000).toDateString();
+    if (d !== day) { day = d; html += `<tr class="day"><td colspan="10">${fmtDay(r.start)}</td></tr>`; }
+    html += `
+    <tr data-hex="${esc(r.hex)}" data-ed="${r.edition || ""}">
+      <td class="time">${fmtHM(r.start)}</td>
+      <td><b>${esc(r.callsign || "—")}</b></td>
+      <td>${esc(r.reg || r.hex.toUpperCase())}</td>
+      <td class="col-type">${esc(r.type || "—")}</td>
+      <td class="col-op">${esc(r.operator_name || r.operator || "—")}</td>
+      <td class="num">${fmtKm(r.min_dist_km)} km</td>
+      <td class="num">${altRange(r.min_alt_ft, r.max_alt_ft)}</td>
+      <td class="num col-speed">${r.max_gs_kt == null ? "—" : Math.round(r.max_gs_kt) + " kt"}</td>
+      <td class="num col-dur">${fmtDur(r.end - r.start)}</td>
+      <td>${r.card_no ? `<span class="tier" style="color:var(--${r.rarity})">#${String(r.card_no).padStart(3, "0")}</span>` : ""}${r.first_catch ? ` <span class="badge new">new</span>` : ""}</td>
+    </tr>`;
+  }
+  $("#log-body").innerHTML = html || `<tr><td colspan="10" class="empty">No sightings${q ? " match" : " yet"}.</td></tr>`;
+  $("#log-hint").textContent = `${LOG.total.toLocaleString()} sightings counted, newest first` +
+    (LOG.rows.length < LOG.total ? ` · showing the latest ${LOG.rows.length.toLocaleString()}` : "") +
+    (q ? ` · ${rows.length} match` : "") + ". Tap a row to open its card.";
+  $("#log-more").hidden = !LOG.more;
+}
+
 async function openCard(hex, ed) {
   const c = await api(`/api/card/${hex}${ed ? `?edition=${ed}` : ""}`);
   if (c.error) return;
@@ -369,6 +412,7 @@ async function refresh() {
   const active = $(".tabs .active").dataset.tab;
   if (active === "dex") renderDex();
   if (active === "airlines") renderAirlines();
+  if (active === "log" && LOG.rows.length <= 200 && !$("#log-search").value) loadLog();
   renderLive();
 }
 
@@ -379,12 +423,18 @@ document.querySelectorAll(".tabs button").forEach((b) =>
     if (b.dataset.tab === "dex") renderDex();
     if (b.dataset.tab === "airlines") renderAirlines();
     if (b.dataset.tab === "live") renderLive();
+    if (b.dataset.tab === "log") loadLog();
+    history.replaceState(null, "", b.dataset.tab === "binder" ? location.pathname : `#${b.dataset.tab}`);
   })
 );
+{ const t = location.hash.slice(1); const b = t && $(`.tabs button[data-tab="${CSS.escape(t)}"]`); if (b) b.click(); }
 ["#search", "#rarity-filter", "#sort"].forEach((s) => $(s).addEventListener("input", renderBinder));
 $("#cards").addEventListener("click", (e) => { const c = e.target.closest(".card"); if (c) openCard(c.dataset.hex, c.dataset.ed); });
 $("#cards").addEventListener("keydown", (e) => { if (e.key === "Enter") { const c = e.target.closest(".card"); if (c) openCard(c.dataset.hex, c.dataset.ed); } });
 $("#edition-filter").addEventListener("input", renderBinder);
+$("#log-search").addEventListener("input", drawLog);
+$("#log-more").addEventListener("click", () => loadLog(true));
+$("#log-body").addEventListener("click", (e) => { const r = e.target.closest("tr[data-hex]"); if (r) openCard(r.dataset.hex, r.dataset.ed); });
 function closeModal() {
   $("#modal").hidden = true;
   document.body.classList.remove("modal-open");
