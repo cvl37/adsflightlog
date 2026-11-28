@@ -101,6 +101,35 @@ def sweep_curve(a: float, b: float, n: int, fn):
     return [fn(a + (b - a) * i / n) for i in range(n + 1)]
 
 
+def pchip(pts):
+    """Monotone cubic interpolation through (x, y) points; returns f(x)."""
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    n = len(xs)
+    h = [xs[i + 1] - xs[i] for i in range(n - 1)]
+    d = [(ys[i + 1] - ys[i]) / h[i] for i in range(n - 1)]
+    m = [0.0] * n
+    m[0], m[-1] = d[0], d[-1]
+    for i in range(1, n - 1):
+        if d[i - 1] * d[i] <= 0:
+            m[i] = 0.0
+        else:
+            w1, w2 = 2 * h[i] + h[i - 1], h[i] + 2 * h[i - 1]
+            m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i])
+
+    def f(x):
+        if x <= xs[0]:
+            return ys[0]
+        if x >= xs[-1]:
+            return ys[-1]
+        i = max(0, min(n - 2, next(k for k in range(n - 1) if xs[k + 1] >= x)))
+        t = (x - xs[i]) / h[i]
+        h00, h10 = 2 * t ** 3 - 3 * t ** 2 + 1, t ** 3 - 2 * t ** 2 + t
+        h01, h11 = -2 * t ** 3 + 3 * t ** 2, t ** 3 - t ** 2
+        return h00 * ys[i] + h10 * h[i] * m[i] + h01 * ys[i + 1] + h11 * h[i] * m[i + 1]
+    return f
+
+
 def superq(t: float, e: float) -> float:
     """Quarter super-ellipse from 0 (t=0) to 1 (t=1); e=2 is an ellipse."""
     t = min(max(t, 0.0), 1.0)
@@ -183,15 +212,30 @@ class Spec:
     windows: bool = True
     upper_deck: float = 0.0      # 747: hump length fraction of L
     upper_h: float = 0.25        # 747: hump height over the crown (fraction of D)
+    upper_win_y: float = 0.96
+    upper_win_from: float = 0.0  # metres
     upper_win_to: float = 0.0
     double_deck: bool = False
     doors: tuple = ()            # x fractions of L
     exits: tuple = ()            # overwing emergency exits (x fractions)
     door_w: float = 0.85
-    door_h: float = 0.48         # fraction of D
-    door_y: float = 0.22
+    door_h: float = 0.47         # fraction of D
+    door_y: float = 0.32
     cockpit: str = "airliner"    # airliner | bizjet | ga | heli
     cockpit_x: float = 0.0       # override: start as fraction of nose length
+    # measured windscreen (side view): x0, x1 in metres from the nose tip;
+    # heights as fractions of D: bottom/top at the rear, top/bottom at the front
+    ck: tuple = ()
+    ck_frames: tuple = (0.36, 0.68)
+    eyebrow: bool = False        # 737 Classic/early NG eyebrow windows
+    # measured nose contour: (metres from tip, fraction of D) traced from drawings
+    nose_top: tuple = ()
+    nose_bot: tuple = ()
+    # light aircraft glazing: windshield (x0, x1, base frac D) rising to the roof, side windows
+    # ((x0, x1, bottom, top), ...), or a bubble canopy (x0, x1, base frac D); metres from the tip
+    ga_ws: tuple = ()
+    ga_side: tuple = ()
+    ga_canopy: tuple = ()
     # engines & gear
     engines: list = field(default_factory=list)
     gear_h: float = 1.6          # fuselage bottom above ground (m)
@@ -224,9 +268,18 @@ class Body:
         self.Lt = s.tail_len * D
         self.xt = L - self.Lt
         self.tip = s.nose_tip * D
+        self.ftop = pchip(s.nose_top) if s.nose_top else None
+        self.fbot = pchip(s.nose_bot) if s.nose_bot else None
+        if self.ftop:
+            self.tip = s.nose_top[0][1] * D
+            self.Ln = s.nose_top[-1][0] if s.nose_top[-1][1] <= 1.0 else self.Ln
+        if self.fbot:
+            self.Lb = s.nose_bot[-1][0]
 
     def top(self, x: float) -> float:
         s, D = self.s, self.s.D
+        if self.ftop and x <= s.nose_top[-1][0]:
+            return self.ftop(x) * D
         y = D
         if x < self.Ln:
             y = self.tip + (D - self.tip) * superq(x / self.Ln, s.nose_e)
@@ -252,6 +305,8 @@ class Body:
 
     def bot(self, x: float) -> float:
         s, D = self.s, self.s.D
+        if self.fbot and x <= s.nose_bot[-1][0]:
+            return self.fbot(x) * D
         y = 0.0
         if x < self.Lb:
             y = self.tip * (1 - superq(x / self.Lb, s.nose_be))
@@ -420,7 +475,7 @@ def side(s: Spec) -> str:
                 x += s.win_pitch
         row(s.win_y * D, s.win_from * L, s.win_to * L)
         if s.upper_deck and s.upper_win_to:
-            row(D + 0.16 * D, b.Ln * 1.15, s.upper_win_to * L)
+            row(s.upper_win_y * D, s.upper_win_from or b.Ln * 1.15, s.upper_win_to * L)
         if s.double_deck:
             row(s.win_y * D + 0.36 * D, s.win_from * L + 1.0, s.win_to * L - 2.0)
 
@@ -575,6 +630,10 @@ def nose_prop_side(c: Canvas, s: Spec, b: Body, e: Engine):
 
 def cockpit_side(c: Canvas, s: Spec, b: Body):
     D = s.D
+    if s.ck and s.cockpit != "ga":
+        return windscreen_side(c, s, b)
+    if s.cockpit == "ga" and (s.ga_ws or s.ga_canopy):
+        return ga_glass_side(c, s, b)
     if s.cockpit == "ga":
         # canopy/side windows of a light aircraft: greenhouse over the cabin
         x0 = (s.cockpit_x or 0.30) * s.L
@@ -615,6 +674,77 @@ def cockpit_side(c: Canvas, s: Spec, b: Body):
     x = xf + (xb_ - xf) * 0.08
     c.poly([(x, b.top(x) - m * 1.6), (x + 0.12 * (xb_ - xf), b.top(x + 0.12 * (xb_ - xf)) - m * 1.6),
             (x + 0.05 * (xb_ - xf), yb + slope * (xb_ - x) * 0.5 + 0.03)], fill=GLASS_HI, opacity=0.8)
+
+
+def ga_glass_side(c: Canvas, s: Spec, b: Body):
+    """Light-aircraft glazing from measured positions."""
+    D = s.D
+    m = 0.04 * D
+    if s.ga_canopy:
+        x0, x1, yb = s.ga_canopy
+        yb *= D
+        topl = [(x, b.top(x) - m * 0.4) for x in [x0 + (x1 - x0) * i / 24 for i in range(25)] if b.top(x) - m * 0.4 > yb]
+        if topl:
+            pts = [(topl[0][0] - 0.05, yb)] + topl + [(topl[-1][0] + 0.05, yb)]
+            c.poly(pts, fill=GLASS, stroke=DARK, sw=0.6)
+            xm = x0 + 0.45 * (x1 - x0)
+            c.line([(xm, yb), (xm + 0.05, b.top(xm) - m)], stroke=DARK, sw=0.7)
+            xh = x0 + 0.18 * (x1 - x0)
+            c.poly([(xh, yb + 0.08 * D), (xh + 0.12, b.top(xh + 0.12) - 2.5 * m), (xh + 0.32, b.top(xh + 0.32) - 2.5 * m),
+                    (xh + 0.22, yb + 0.08 * D)], fill=GLASS_HI, opacity=0.75)
+    if s.ga_ws:
+        x0, x1, yb = s.ga_ws
+        yb *= D
+        topl = [(x, b.top(x) - m) for x in [x0 + (x1 - x0) * i / 16 for i in range(17)] if b.top(x) - m > yb]
+        if topl:
+            pts = [(x0, yb)] + topl + [(x1 - 0.06, yb + 0.03 * D)]
+            c.poly(pts, fill=GLASS, stroke=DARK, sw=0.6)
+            c.poly([(x0 + 0.15 * (x1 - x0), yb + 0.05 * D), (x0 + 0.5 * (x1 - x0), b.top(x0 + 0.5 * (x1 - x0)) - 2 * m),
+                    (x0 + 0.62 * (x1 - x0), b.top(x0 + 0.62 * (x1 - x0)) - 2 * m), (x0 + 0.35 * (x1 - x0), yb + 0.05 * D)],
+                   fill=GLASS_HI, opacity=0.75)
+    for (x0, x1, yb, yt) in s.ga_side:
+        top = [(x, min(yt * D, b.top(x) - m)) for x in [x0 + (x1 - x0) * i / 12 for i in range(13)]]
+        r = 0.08
+        pts = [(x0 + r, yb * D)] + [(x0, yb * D + r)] + top + [(x1, yb * D + r), (x1 - r, yb * D)]
+        c.poly(pts, fill=GLASS, stroke=DARK, sw=0.6)
+
+
+def windscreen_side(c: Canvas, s: Spec, b: Body):
+    """Windscreen from measured positions: a pointed front pane and side panes."""
+    D = s.D
+    x0, x1, yb, yt, ytf, ybf, tipf = (list(s.ck) + [None, None, None])[:7]
+    ytf = yt if ytf is None else ytf
+    ybf = yb if ybf is None else ybf
+    m = 0.035 * D
+    w = x1 - x0
+    xf = x0 + 0.22 * w  # where the front pane reaches full height
+
+    def ytop(x):
+        t = (x - xf) / (x1 - xf) if x > xf else 0.0
+        return min((ytf + (yt - ytf) * t) * D, b.top(x) - m)
+
+    def ybot(x):
+        t = (x - xf) / (x1 - xf) if x > xf else 0.0
+        return (ybf + (yb - ybf) * t) * D
+
+    tip_y = (tipf if tipf is not None else ybf + 0.45 * (ytf - ybf)) * D
+    topl = sweep_curve(xf, x1, 12, lambda x: (x, ytop(x)))
+    pts = [(x0, min(tip_y, b.top(x0) - m))] + topl + [(x1, ybot(x1)), (xf, ybot(xf))]
+    c.poly(pts, fill=GLASS, stroke=DARK, sw=0.7)
+    # frames: front pane edge, then side panes
+    c.line([(xf, ytop(xf)), (xf + 0.05 * w, ybot(xf + 0.05 * w))], stroke=DARK, sw=0.75)
+    for t in s.ck_frames:
+        x = xf + (x1 - xf) * t
+        c.line([(x, ytop(x)), (x + 0.03 * w, ybot(x + 0.03 * w))], stroke=DARK, sw=0.6)
+    # glare highlight on the front pane
+    c.poly([(x0 + 0.25 * (xf - x0), min(tip_y, b.top(x0) - m) + 0.02 * D), (xf - 0.02 * w, ytop(xf) - 0.03 * D),
+            (xf + 0.08 * w, ytop(xf + 0.08 * w) - 0.03 * D), (xf + 0.02 * w, ybot(xf) + 0.04 * D)], fill=GLASS_HI, opacity=0.8)
+    if s.eyebrow:
+        for t in (0.25, 0.6):
+            x = xf + (x1 - xf) * t
+            yy = ytop(x) + 0.07 * D
+            if yy < b.top(x) - m:
+                c.rrect(x - 0.12, yy - 0.05, 0.3, 0.12, 0.05, fill=GLASS, stroke=DARK, sw=0.4)
 
 
 def winglet_side(c: Canvas, s: Spec, x: float, y: float, chord: float):
@@ -823,6 +953,14 @@ def top(s: Spec, below: bool = False) -> str:
     # cockpit windows
     if below:
         pass
+    elif s.ck and s.cockpit != "ga":
+        # windscreen seen from above: front panes across the nose, side panes along it
+        x0, x1 = s.ck[0], s.ck[1]
+        xf = x0 + 0.3 * (x1 - x0)
+        for sign in (1, -1):
+            c.poly([P(x0 + 0.05 * (x1 - x0), sign * hw(x0) * 0.08), P(x0, sign * hw(x0) * 0.75),
+                    P(x1, sign * hw(x1) * 0.97), P(x1 - 0.05 * (x1 - x0), sign * hw(x1) * 0.72),
+                    P(xf, sign * hw(xf) * 0.55), P(xf, sign * hw(xf) * 0.08)], fill=GLASS, stroke=DARK, sw=0.5)
     elif s.cockpit in ("airliner", "bizjet"):
         y0 = b.Ln * 0.62
         for sign in (1, -1):
@@ -917,38 +1055,47 @@ def heli_side(s: Spec) -> str:
         c.ellipse(tx + 0.15, ty + fin_h * 0.6, rr, rr, fill=PROP, opacity=0.18)
         c.line([(tx + 0.15 - rr * 0.9, ty + fin_h * 0.6 - rr * 0.3), (tx + 0.15 + rr * 0.9, ty + fin_h * 0.6 + rr * 0.3)], stroke=PROP, sw=1.0)
         c.ellipse(tx + 0.15, ty + fin_h * 0.6, 0.08, 0.08, fill=DARK)
-    # cabin pod
+    # cabin pod (proportions checked against an H145 side drawing)
     def ctop(x):
         t = x / cab
-        if t < 0.38:
-            return D * (0.45 + 0.55 * superq(t / 0.38, 2.0))
-        return D * (1 - 0.18 * ((t - 0.38) / 0.62) ** 2)
+        if t < 0.32:
+            return D * (0.36 + 0.64 * superq(t / 0.32, 2.3))
+        return D * (1 - 0.14 * ((t - 0.32) / 0.68) ** 2)
+
     def cbot(x):
         t = x / cab
-        if t < 0.25:
-            return D * 0.3 * (1 - superq(t / 0.25, 2.0))
-        return D * 0.04 * (t - 0.25) / 0.75 + (D * 0.3 * max(0, (t - 0.82) / 0.18) ** 1.5)
+        if t < 0.16:
+            return D * 0.34 * (1 - superq(t / 0.16, 2.0))
+        if t < 0.72:
+            return 0.0
+        return D * 0.42 * ((t - 0.72) / 0.28) ** 1.6
     xs = [cab * i / 60 for i in range(61)]
     pod = [(x, ctop(x)) for x in xs] + [(x, cbot(x)) for x in reversed(xs)]
     c.poly(pod, fill=WHITE)
-    c.poly([(x, cbot(x) + 0.32 * (ctop(x) - cbot(x))) for x in xs] + [(x, cbot(x)) for x in reversed(xs)], fill=SHADE)
+    c.poly([(x, cbot(x) + 0.30 * (ctop(x) - cbot(x))) for x in xs] + [(x, cbot(x)) for x in reversed(xs)], fill=SHADE)
     c.poly(pod, fill="none", stroke=LINE, sw=0.8)
-    # engine cowling / hump
-    hx0, hx1 = 0.35 * cab, 0.95 * cab
-    c.poly([(hx0, ctop(hx0) - 0.05)] + sweep_curve(hx0, hx1, 14, lambda x: (x, ctop(x) + 0.28 * D * max(0.0, math.sin(math.pi * (x - hx0) / (hx1 - hx0))) ** 0.5))
-           + [(hx1, ctop(hx1) - 0.05)], fill=WHITE, stroke=LINE, sw=0.7)
-    c.ellipse(0.8 * cab, ctop(0.8 * cab) + 0.12 * D, 0.18, 0.08 * D, fill=DARK)
-    # glass: big wrap-around windscreen + cabin window
-    wpts = [(0.06 * cab, 0.42 * D)] + sweep_curve(0.08 * cab, 0.36 * cab, 12, lambda x: (x, ctop(x) - 0.06 * D)) + [(0.36 * cab, 0.45 * D), (0.18 * cab, 0.3 * D)]
-    c.poly(wpts, fill=GLASS, stroke=DARK, sw=0.6)
-    c.poly([(0.1 * cab, 0.52 * D), (0.14 * cab, ctop(0.14 * cab) - 0.12 * D), (0.2 * cab, ctop(0.2 * cab) - 0.12 * D), (0.15 * cab, 0.48 * D)], fill=GLASS_HI, opacity=0.8)
-    c.rrect(0.42 * cab, 0.42 * D, 0.2 * cab, 0.36 * D, 0.12, fill=GLASS, stroke=DARK, sw=0.6)
-    c.rrect(0.42 * cab - 0.05, 0.12 * D, 0.2 * cab + 0.1, 0.72 * D, 0.1, fill="none", stroke=LINE, sw=0.6)
-    if s.doors:
-        c.rrect(0.66 * cab, 0.45 * D, 0.13 * cab, 0.3 * D, 0.1, fill=GLASS, stroke=DARK, sw=0.6)
+    # engine and gearbox cowling: a long low hump over the rear cabin
+    hx0, hx1 = 0.40 * cab, 1.02 * cab
+    hump = lambda x: ctop(min(x, cab)) + 0.26 * D * max(0.0, math.sin(math.pi * (x - hx0) / (hx1 - hx0))) ** 0.35
+    c.poly([(hx0, ctop(hx0) - 0.05)] + sweep_curve(hx0, hx1, 18, lambda x: (x, hump(x)))
+           + [(hx1, ctop(min(hx1, cab)) - 0.1)], fill=WHITE, stroke=LINE, sw=0.7)
+    c.ellipse(0.86 * cab, hump(0.86 * cab) - 0.1 * D, 0.16 * cab * 0.5, 0.07 * D, fill=DARK)   # exhaust
+    # glass: windscreen over the whole upper nose, chin window below it
+    ws = [(0.015 * cab, 0.40 * D)] + sweep_curve(0.03 * cab, 0.30 * cab, 14, lambda x: (x, ctop(x) - 0.04 * D)) + \
+         [(0.30 * cab, 0.62 * D), (0.22 * cab, 0.48 * D), (0.10 * cab, 0.40 * D)]
+    c.poly(ws, fill=GLASS, stroke=DARK, sw=0.6)
+    c.poly([(0.05 * cab, 0.33 * D), (0.10 * cab, 0.36 * D), (0.20 * cab, 0.42 * D), (0.24 * cab, 0.20 * D), (0.12 * cab, 0.10 * D)],
+           fill=GLASS, stroke=DARK, sw=0.5)
+    c.poly([(0.06 * cab, 0.55 * D), (0.10 * cab, ctop(0.10 * cab) - 0.12 * D), (0.15 * cab, ctop(0.15 * cab) - 0.12 * D),
+            (0.11 * cab, 0.52 * D)], fill=GLASS_HI, opacity=0.8)
+    # crew door and cabin door with big windows, then a small rear window
+    for (d0, d1) in ((0.30, 0.45), (0.46, 0.62)):
+        c.rrect(d0 * cab, 0.10 * D, (d1 - d0) * cab, ctop(d1 * cab) - 0.16 * D, 0.12, fill="none", stroke=LINE, sw=0.6)
+        c.rrect((d0 + 0.015) * cab, 0.45 * D, (d1 - d0 - 0.03) * cab, ctop(d1 * cab) - 0.62 * D, 0.14, fill=GLASS, stroke=DARK, sw=0.6)
+    c.rrect(0.66 * cab, 0.55 * D, 0.06 * cab, 0.28 * D, 0.08, fill=GLASS, stroke=DARK, sw=0.5)
     # rotor mast, hub, blades
-    mx = 0.55 * cab
-    my = ctop(mx) + 0.28 * D
+    mx = 0.52 * cab
+    my = ctop(mx) + 0.26 * D
     c.poly([(mx - 0.1, my - 0.05), (mx + 0.1, my - 0.05), (mx + 0.08, my + 0.35), (mx - 0.08, my + 0.35)], fill=METAL)
     c.ellipse(mx, my + 0.4, 0.35, 0.13, fill=DARK)
     R = s.span / 2
@@ -1098,6 +1245,8 @@ def front(s: Spec) -> str:
     c.ellipse(-rr * 0.35, D * 0.52, rr * 0.25, rr * 0.18, fill="#ffffff", opacity=0.8)
     # windscreen
     cy = (D * (1 + s.upper_h) - 0.12 * D) if s.upper_deck else (0.70 * D if s.cockpit != "ga" else 0.74 * D)
+    if s.ck and s.cockpit != "ga":
+        cy = (s.ck[2] + s.ck[3]) / 2 * D
     if s.cockpit == "ga":
         c.poly([(-W * 0.4, cy - D * 0.12), (-W * 0.3, cy + D * 0.17), (W * 0.3, cy + D * 0.17), (W * 0.4, cy - D * 0.12)], fill=GLASS, stroke=DARK, sw=0.6)
     else:

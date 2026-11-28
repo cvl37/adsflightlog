@@ -27,16 +27,20 @@ def fan(z, dia, length, fwd=0.65, drop=0.2, chevrons=False):
 # ------------------------------------------------------------ Boeing 737
 B737NG = Spec(
     "Boeing 737-800", L=39.5, D=4.01, W=3.76, span=35.8,
-    nose_len=1.55, nose_blen=1.05, nose_tip=0.33, nose_e=1.75,
+    nose_top=((0.0, 0.33), (0.25, 0.41), (0.5, 0.46), (1.0, 0.52), (1.5, 0.57), (1.75, 0.63), (2.0, 0.69),
+              (2.5, 0.77), (3.0, 0.81), (3.5, 0.85), (4.0, 0.88), (4.5, 0.91), (5.0, 0.94), (6.0, 0.97), (7.0, 0.98),
+              (8.25, 1.0)),
+    nose_bot=((0.0, 0.31), (0.25, 0.22), (0.5, 0.19), (1.0, 0.13), (1.5, 0.09), (2.0, 0.05), (2.5, 0.02), (3.0, 0.0)),
+    ck=(1.5, 2.95, 0.58, 0.65, 0.65, 0.53),
     tail_len=3.1, tail_top=0.80, tail_bot=0.62,
     wing_x=0.385, root=7.3, kink=0.33, kink_chord=4.3, tip=1.25, sweep=27, dihedral=6,
     wingtip="winglet", winglet_h=2.4,
     fin_x=0.80, fin_root=6.6, fin_tip=1.6, fin_h=6.6, fin_sweep=37, dorsal=0.45,
     stab_x=0.875, stab_span=14.35, stab_root=3.8, stab_tip=1.1, stab_sweep=31, stab_y=0.62,
     win_y=0.60, win_from=0.13, win_to=0.81, win_pitch=0.51,
-    doors=(0.095, 0.82), exits=(0.415, 0.445),
+    doors=(0.11, 0.82), exits=(0.415, 0.445),
     engines=[Engine("wing", z=0.19, dia=2.0, length=3.6, fwd=0.72, gc=0.46)],
-    gear_h=1.15, nose_gear=0.07, main_gear=(0.47,), wheel_d=1.14,
+    gear_h=1.10, nose_gear=0.101, main_gear=(0.47,), wheel_d=1.14,
     belly_fairing=0.25,
 )
 add("B738", B737NG)
@@ -58,16 +62,20 @@ add("B3XM", replace(B737MAX, name="Boeing 737 MAX 10", L=43.8, doors=(0.09, 0.84
 # ------------------------------------------------------------ Airbus A320 family
 A320 = Spec(
     "Airbus A320", L=37.57, D=4.14, W=3.95, span=34.1,
-    nose_len=1.5, nose_blen=1.05, nose_tip=0.40, nose_e=2.1,
+    nose_top=((0.0, 0.4), (0.25, 0.49), (0.5, 0.53), (0.75, 0.57), (1.0, 0.59), (1.25, 0.62), (1.5, 0.68),
+              (1.75, 0.74), (2.0, 0.79), (2.5, 0.86), (3.0, 0.92), (3.5, 0.96), (4.0, 0.98), (4.5, 1.0)),
+    nose_bot=((0.0, 0.32), (0.25, 0.23), (0.5, 0.2), (1.0, 0.14), (1.5, 0.11), (2.0, 0.09), (3.0, 0.07),
+              (4.0, 0.04), (5.0, 0.0)),
+    ck=(1.35, 3.45, 0.59, 0.75, 0.75, 0.59, 0.60), ck_frames=(0.38, 0.72),
     tail_len=3.0, tail_top=0.80, tail_bot=0.63,
     wing_x=0.39, root=7.0, kink=0.34, kink_chord=4.4, tip=1.5, sweep=27, dihedral=5.1,
     wingtip="fence",
     fin_x=0.80, fin_root=6.1, fin_tip=2.0, fin_h=6.0, fin_sweep=34, dorsal=0.18,
     stab_x=0.875, stab_span=12.45, stab_root=3.5, stab_tip=1.2, stab_sweep=30, stab_y=0.62,
-    win_y=0.60, win_from=0.13, win_to=0.80, win_pitch=0.53,
-    doors=(0.10, 0.82), exits=(0.41, 0.44),
+    win_y=0.66, win_from=0.16, win_to=0.80, win_pitch=0.53,
+    doors=(0.125, 0.82), exits=(0.41, 0.44), door_y=0.39, door_h=0.46,
     engines=[Engine("wing", z=0.25, dia=2.1, length=4.1, fwd=0.62, gc=0.58)],
-    gear_h=1.55, nose_gear=0.135, main_gear=(0.47,), wheel_d=1.17,
+    gear_h=1.60, nose_gear=0.12, main_gear=(0.47,), wheel_d=1.17,
     belly_fairing=0.3,
 )
 add("A320", A320)
@@ -135,112 +143,152 @@ add("BCS1", replace(BCS3, name="Airbus A220-100", L=35.0, doors=(0.11, 0.82), ex
 # ------------------------------------------------------------ Boeing 757
 B752 = Spec(
     "Boeing 757-200", L=47.3, D=4.0, W=3.76, span=38.05,
-    nose_len=1.75, nose_blen=1.1, nose_tip=0.34, nose_e=1.75,
+    nose_top=((0.0, 0.28), (0.25, 0.37), (0.5, 0.42), (1.0, 0.51), (1.25, 0.55), (1.5, 0.61), (1.75, 0.68),
+              (2.0, 0.73), (2.5, 0.8), (3.0, 0.86), (3.5, 0.9), (4.0, 0.93), (4.5, 0.96), (5.25, 0.99), (6.0, 1.0)),
+    nose_bot=((0.0, 0.21), (0.25, 0.14), (0.5, 0.1), (1.0, 0.06), (1.5, 0.04), (2.0, 0.03), (2.75, 0.0)),
+    ck=(1.25, 3.05, 0.58, 0.67, 0.68, 0.53, 0.54), ck_frames=(0.3, 0.62),
     tail_len=3.2, tail_top=0.80, tail_bot=0.62,
     wing_x=0.38, root=8.2, kink=0.3, kink_chord=4.8, tip=1.6, sweep=27, dihedral=6, wingtip="plain",
     fin_x=0.82, fin_root=7.2, fin_tip=2.2, fin_h=7.4, fin_sweep=39, dorsal=0.25,
     stab_x=0.88, stab_span=15.2, stab_root=4.0, stab_tip=1.3, stab_sweep=31,
-    win_y=0.60, win_from=0.10, win_to=0.84, win_pitch=0.51,
-    doors=(0.08, 0.22, 0.60, 0.86), exits=(0.43, 0.46),
+    win_y=0.64, win_from=0.13, win_to=0.84, win_pitch=0.51,
+    doors=(0.103, 0.22, 0.60, 0.86), exits=(0.43, 0.46), door_y=0.39, door_h=0.47,
     engines=[Engine("wing", z=0.26, dia=2.6, length=5.0, fwd=0.62, gc=0.66)],
-    gear_h=1.75, nose_gear=0.065, main_gear=(0.49,), axles=(2,), wheel_d=1.17, belly_fairing=0.3,
+    gear_h=2.2, nose_gear=0.128, main_gear=(0.49,), axles=(2,), wheel_d=1.17, belly_fairing=0.3,
 )
 add("B752", B752)
-add("B753", replace(B752, name="Boeing 757-300", L=54.5, doors=(0.07, 0.20, 0.51, 0.67, 0.87)))
+add("B753", replace(B752, name="Boeing 757-300", L=54.5, doors=(0.089, 0.20, 0.51, 0.67, 0.87), nose_gear=0.111))
 
 # ------------------------------------------------------------ Boeing 767
 B763 = Spec(
     "Boeing 767-300", L=54.9, D=5.41, W=5.03, span=47.6,
-    nose_len=1.6, nose_blen=1.05, nose_tip=0.37, nose_e=1.9,
+    nose_top=((0.0, 0.49), (0.25, 0.53), (0.5, 0.57), (1.0, 0.62), (1.25, 0.67), (1.5, 0.7), (2.0, 0.78),
+              (2.5, 0.83), (3.0, 0.88), (3.5, 0.9), (4.0, 0.93), (4.5, 0.95), (5.0, 0.97), (5.75, 0.99), (6.5, 1.0)),
+    nose_bot=((0.0, 0.4), (0.25, 0.34), (0.5, 0.31), (1.0, 0.26), (1.5, 0.22), (2.0, 0.17), (2.5, 0.14),
+              (3.0, 0.11), (3.5, 0.08), (4.0, 0.05), (4.75, 0.0)),
+    ck=(1.0, 3.05, 0.62, 0.80, 0.80, 0.62, 0.63), ck_frames=(0.45,),
     tail_len=3.0, tail_top=0.80, tail_bot=0.63,
     wing_x=0.38, root=10.5, kink=0.3, kink_chord=6.5, tip=2.3, sweep=33, dihedral=6, wingtip="plain",
     fin_x=0.82, fin_root=8.4, fin_tip=2.8, fin_h=8.3, fin_sweep=41, dorsal=0.2,
     stab_x=0.885, stab_span=18.6, stab_root=5.0, stab_tip=1.7, stab_sweep=33,
-    win_y=0.60, win_from=0.10, win_to=0.85, win_pitch=0.53,
-    doors=(0.075, 0.21, 0.86), exits=(0.50,),
+    win_y=0.62, win_from=0.15, win_to=0.85, win_pitch=0.53,
+    doors=(0.097, 0.21, 0.86), exits=(0.50,), door_w=1.07, door_y=0.44, door_h=0.34,
     engines=[Engine("wing", z=0.26, dia=2.95, length=5.4, fwd=0.62, gc=0.85)],
-    gear_h=1.9, nose_gear=0.07, main_gear=(0.50,), axles=(2,), wheel_d=1.17, belly_fairing=0.35, track=9.3,
+    gear_h=1.95, nose_gear=0.082, main_gear=(0.50,), axles=(2,), wheel_d=1.17, belly_fairing=0.35, track=9.3,
 )
 add("B763", B763)
-add("B762", replace(B763, name="Boeing 767-200", L=48.5, doors=(0.08, 0.86), exits=(0.49,)))
-add("B764", replace(B763, name="Boeing 767-400ER", L=61.4, span=51.9, wingtip="raked", doors=(0.07, 0.19, 0.57, 0.87), exits=(), gear_h=2.0))
+add("B762", replace(B763, name="Boeing 767-200", L=48.5, doors=(0.11, 0.86), exits=(0.49,), nose_gear=0.093))
+add("B764", replace(B763, name="Boeing 767-400ER", L=61.4, span=51.9, wingtip="raked", doors=(0.087, 0.19, 0.57, 0.87), exits=(),
+                    gear_h=2.0, nose_gear=0.073))
 
 # ------------------------------------------------------------ Boeing 777
 B77W = Spec(
     "Boeing 777-300ER", L=73.9, D=6.2, W=6.19, span=64.8,
-    nose_len=1.5, nose_blen=1.0, nose_tip=0.38, nose_e=2.0,
+    nose_top=((0.0, 0.43), (0.25, 0.48), (0.5, 0.51), (1.0, 0.56), (1.5, 0.64), (2.0, 0.69), (2.5, 0.73),
+              (3.0, 0.77), (3.5, 0.81), (4.0, 0.83), (4.5, 0.85), (5.0, 0.87), (5.5, 0.89), (6.0, 0.91),
+              (6.5, 0.93), (7.0, 0.94), (7.5, 0.95), (8.0, 0.96), (8.75, 0.98), (10.0, 1.0)),
+    nose_bot=((0.0, 0.35), (0.25, 0.3), (0.5, 0.27), (1.0, 0.23), (1.5, 0.19), (2.0, 0.17), (2.5, 0.14),
+              (3.0, 0.12), (3.5, 0.09), (4.0, 0.07), (4.5, 0.04), (5.25, 0.0)),
+    ck=(1.2, 2.9, 0.55, 0.66, 0.65, 0.55, 0.55), ck_frames=(0.45,),
     tail_len=2.9, tail_top=0.82, tail_bot=0.70, tail_be=1.2,
     wing_x=0.37, root=13.6, kink=0.3, kink_chord=8.4, tip=2.2, sweep=33, dihedral=6, wingtip="raked",
     fin_x=0.835, fin_root=11.0, fin_tip=3.6, fin_h=9.5, fin_sweep=42, dorsal=0.12,
     stab_x=0.89, stab_span=21.5, stab_root=6.6, stab_tip=2.2, stab_sweep=35,
-    win_y=0.60, win_from=0.08, win_to=0.87, win_pitch=0.53, win_w=0.27, win_h=0.40,
-    doors=(0.085, 0.27, 0.48, 0.66, 0.84),
+    win_y=0.59, win_from=0.10, win_to=0.87, win_pitch=0.53, win_w=0.27, win_h=0.40,
+    doors=(0.081, 0.225, 0.48, 0.66, 0.84), door_w=1.07, door_y=0.40, door_h=0.36,
     engines=[Engine("wing", z=0.22, dia=4.0, length=7.3, fwd=0.60, gc=0.9)],
-    gear_h=2.3, nose_gear=0.065, main_gear=(0.49,), axles=(3,), wheel_d=1.33, belly_fairing=0.45, track=11.0,
+    gear_h=2.3, nose_gear=0.08, main_gear=(0.49,), axles=(3,), wheel_d=1.33, belly_fairing=0.45, track=11.0,
 )
 add("B77W", B77W)
 add("B773", replace(B77W, name="Boeing 777-300", span=60.9, wingtip="plain", engines=[Engine("wing", z=0.22, dia=3.7, length=6.8, fwd=0.6, gc=0.95)]))
-add("B77L", replace(B77W, name="Boeing 777-200LR / 777F", L=63.7, doors=(0.10, 0.32, 0.62, 0.85)))
+add("B77L", replace(B77W, name="Boeing 777-200LR / 777F", L=63.7, doors=(0.094, 0.32, 0.62, 0.85), nose_gear=0.093,
+                    win_from=0.115))
 add("B772", replace(SPECS["B77L"], name="Boeing 777-200", span=60.9, wingtip="plain",
                     engines=[Engine("wing", z=0.22, dia=3.6, length=6.7, fwd=0.6, gc=0.95)]))
-add("B779", replace(B77W, name="Boeing 777-9", L=76.7, span=71.8, wingtip="raked", root=14.2, tip=2.0,
-                    engines=[Engine("wing", z=0.22, dia=4.4, length=7.6, fwd=0.62, gc=0.8)], doors=(0.08, 0.26, 0.47, 0.66, 0.85)))
+add("B779", replace(B77W, name="Boeing 777-9", L=76.7, span=71.8, wingtip="raked", root=14.2, tip=2.0, nose_gear=0.077,
+                    engines=[Engine("wing", z=0.22, dia=4.4, length=7.6, fwd=0.62, gc=0.8)], doors=(0.078, 0.26, 0.47, 0.66, 0.85)))
 
 # ------------------------------------------------------------ Boeing 787
 B789 = Spec(
     "Boeing 787-9 Dreamliner", L=62.8, D=5.9, W=5.77, span=60.1,
-    nose_len=1.9, nose_blen=1.15, nose_tip=0.40, nose_e=1.65,
+    nose_top=((0.0, 0.31), (0.25, 0.38), (0.5, 0.42), (1.0, 0.51), (1.5, 0.58), (2.0, 0.65), (2.5, 0.71),
+              (3.0, 0.77), (3.5, 0.82), (4.0, 0.86), (4.5, 0.89), (5.0, 0.91), (5.5, 0.94), (6.0, 0.96),
+              (6.5, 0.97), (7.25, 0.99), (8.5, 1.0)),
+    nose_bot=((0.0, 0.26), (0.25, 0.2), (0.5, 0.18), (1.0, 0.14), (1.5, 0.11), (2.0, 0.09), (3.0, 0.06),
+              (4.0, 0.04), (5.0, 0.02), (6.0, 0.01), (7.25, 0.0)),
+    ck=(1.6, 3.2, 0.55, 0.66, 0.66, 0.56, 0.56), ck_frames=(0.45,),
     tail_len=3.0, tail_top=0.80, tail_bot=0.64,
     wing_x=0.38, root=12.0, kink=0.3, kink_chord=7.2, tip=1.6, sweep=34, dihedral=7, wingtip="raked",
     fin_x=0.83, fin_root=10.0, fin_tip=3.3, fin_h=9.0, fin_sweep=41, dorsal=0.15,
     stab_x=0.885, stab_span=19.8, stab_root=6.0, stab_tip=2.0, stab_sweep=35,
-    win_y=0.60, win_from=0.09, win_to=0.86, win_pitch=0.62, win_w=0.29, win_h=0.47,
-    doors=(0.09, 0.31, 0.60, 0.85),
+    win_y=0.63, win_from=0.11, win_to=0.86, win_pitch=0.62, win_w=0.29, win_h=0.47,
+    doors=(0.083, 0.31, 0.60, 0.85), door_w=1.07, door_y=0.40, door_h=0.38,
     engines=[Engine("wing", z=0.22, dia=3.5, length=6.2, fwd=0.62, gc=0.85, chevrons=True)],
-    gear_h=2.1, nose_gear=0.075, main_gear=(0.50,), axles=(2,), wheel_d=1.28, belly_fairing=0.4, track=9.8,
+    gear_h=1.8, nose_gear=0.083, main_gear=(0.50,), axles=(2,), wheel_d=1.28, belly_fairing=0.4, track=9.8,
 )
 add("B789", B789)
-add("B788", replace(B789, name="Boeing 787-8 Dreamliner", L=56.7, doors=(0.10, 0.33, 0.62, 0.85)))
-add("B78X", replace(B789, name="Boeing 787-10 Dreamliner", L=68.3, doors=(0.085, 0.28, 0.58, 0.86), gear_h=2.2))
+add("B788", replace(B789, name="Boeing 787-8 Dreamliner", L=56.7, doors=(0.092, 0.33, 0.62, 0.85), nose_gear=0.092,
+                    win_from=0.12))
+add("B78X", replace(B789, name="Boeing 787-10 Dreamliner", L=68.3, doors=(0.076, 0.28, 0.58, 0.86), nose_gear=0.076,
+                    win_from=0.10))
 
 # ------------------------------------------------------------ Boeing 747
+def hump(flat_to: float, end: float) -> tuple:
+    """747 nose and upper-deck contour (traced): rise, flat 1.16 D crown, fairing back to the barrel."""
+    rise = ((0.0, 0.51), (0.5, 0.61), (1.0, 0.67), (1.5, 0.71), (2.0, 0.74), (2.5, 0.78), (3.0, 0.82),
+            (3.5, 0.85), (4.0, 0.89), (4.5, 0.93), (5.0, 1.0), (5.5, 1.06), (6.0, 1.1), (6.5, 1.13), (7.0, 1.15),
+            (7.5, 1.16))
+    fair = ((0.0, 1.16), (0.12, 1.13), (0.25, 1.12), (0.38, 1.09), (0.5, 1.06), (0.62, 1.04), (0.75, 1.02),
+            (0.88, 1.01), (1.0, 1.0))
+    return rise + tuple((round(flat_to + f * (end - flat_to), 2), y) for f, y in fair)
+
+
 B744 = Spec(
     "Boeing 747-400", L=70.7, D=6.5, W=6.5, span=64.4,
-    nose_len=1.35, nose_blen=1.0, nose_tip=0.40, nose_e=2.1,
+    nose_top=hump(22.5, 31.0),
+    nose_bot=((0.0, 0.48), (0.5, 0.38), (1.0, 0.32), (1.5, 0.28), (2.0, 0.24), (2.5, 0.21), (3.0, 0.17),
+              (3.5, 0.15), (4.0, 0.13), (4.5, 0.11), (5.0, 0.09), (5.5, 0.07), (6.0, 0.05), (6.5, 0.04), (7.0, 0.0)),
+    ck=(5.0, 6.3, 0.97, 1.05, 1.05, 0.96, 0.97), ck_frames=(0.55,),
     tail_len=3.0, tail_top=0.82, tail_bot=0.66,
     wing_x=0.36, root=15.0, kink=0.3, kink_chord=9.6, tip=3.6, sweep=40, dihedral=7, wingtip="winglet", winglet_h=1.8,
     fin_x=0.80, fin_root=13.0, fin_tip=4.2, fin_h=9.9, fin_sweep=45, dorsal=0.1,
     stab_x=0.875, stab_span=22.2, stab_root=7.0, stab_tip=2.4, stab_sweep=37,
-    win_y=0.60, win_from=0.09, win_to=0.84, win_pitch=0.53, win_w=0.27, win_h=0.40,
-    upper_deck=0.37, upper_win_to=0.33, upper_h=0.30, cockpit_x=0.85,
-    doors=(0.075, 0.26, 0.44, 0.63, 0.82),
+    win_y=0.58, win_from=0.017, win_to=0.84, win_pitch=0.53, win_w=0.27, win_h=0.40,
+    upper_deck=0.44, upper_win_to=0.31, upper_h=0.18, upper_win_from=9.8,
+    doors=(0.127, 0.26, 0.44, 0.63, 0.82), door_w=1.07, door_y=0.40, door_h=0.34,
     engines=[Engine("wing", z=0.22, dia=2.9, length=5.3, fwd=0.62, gc=1.2),
              Engine("wing", z=0.58, dia=2.9, length=5.3, fwd=0.62, drop=0.15)],
-    gear_h=2.3, nose_gear=0.05, main_gear=(0.47, 0.53), axles=(2, 2), wheel_d=1.25, belly_fairing=0.4, track=11.0,
+    gear_h=2.2, nose_gear=0.113, main_gear=(0.47, 0.53), axles=(2, 2), wheel_d=1.25, belly_fairing=0.4, track=11.0,
 )
 add("B744", B744)
-add("B743", replace(B744, name="Boeing 747-300", span=59.6, wingtip="plain", upper_deck=0.37, upper_win_to=0.33))
-add("B742", replace(B744, name="Boeing 747-200", span=59.6, wingtip="plain", upper_deck=0.26, upper_win_to=0.22))
-add("B748", replace(B744, name="Boeing 747-8", L=76.3, span=68.4, wingtip="raked", upper_deck=0.40, upper_win_to=0.36, root=15.6,
+add("B743", replace(B744, name="Boeing 747-300", span=59.6, wingtip="plain"))
+add("B742", replace(B744, name="Boeing 747-200", span=59.6, wingtip="plain", nose_top=hump(16.5, 24.0), upper_win_to=0.21))
+add("B748", replace(B744, name="Boeing 747-8", L=76.3, span=68.4, wingtip="raked", nose_top=hump(25.5, 33.5), upper_win_to=0.33,
+                    root=15.6, doors=(0.118, 0.26, 0.44, 0.63, 0.83), nose_gear=0.105,
                     engines=[Engine("wing", z=0.22, dia=3.3, length=5.8, fwd=0.62, gc=1.0, chevrons=True),
-                             Engine("wing", z=0.58, dia=3.3, length=5.8, fwd=0.62, drop=0.12, chevrons=True)],
-                    doors=(0.07, 0.25, 0.44, 0.63, 0.83)))
+                             Engine("wing", z=0.58, dia=3.3, length=5.8, fwd=0.62, drop=0.12, chevrons=True)]))
 
 # ------------------------------------------------------------ Airbus widebodies
 A333 = Spec(
     "Airbus A330-300", L=63.7, D=5.64, W=5.64, span=60.3,
-    nose_len=1.5, nose_blen=1.05, nose_tip=0.40, nose_e=2.1,
+    nose_top=((0.0, 0.45), (0.25, 0.49), (0.5, 0.52), (1.0, 0.58), (1.25, 0.59), (1.5, 0.63), (1.75, 0.69),
+              (2.0, 0.71), (2.5, 0.77), (3.0, 0.81), (3.5, 0.84), (4.0, 0.87), (4.5, 0.89), (5.0, 0.92),
+              (5.5, 0.94), (6.0, 0.95), (6.75, 0.98), (7.5, 0.99), (8.5, 1.0)),
+    nose_bot=((0.0, 0.37), (0.25, 0.31), (0.5, 0.28), (1.0, 0.22), (1.5, 0.18), (2.0, 0.14), (2.5, 0.11),
+              (3.0, 0.08), (3.5, 0.06), (4.0, 0.04), (4.5, 0.02), (5.25, 0.0)),
+    ck=(1.3, 3.45, 0.59, 0.70, 0.70, 0.59, 0.59), ck_frames=(0.38, 0.72),
     tail_len=3.0, tail_top=0.80, tail_bot=0.64,
     wing_x=0.37, root=11.0, kink=0.3, kink_chord=7.0, tip=1.7, sweep=31, dihedral=5.5, wingtip="winglet", winglet_h=2.7,
     fin_x=0.82, fin_root=9.0, fin_tip=3.1, fin_h=8.3, fin_sweep=42, dorsal=0.18,
     stab_x=0.88, stab_span=19.4, stab_root=5.6, stab_tip=2.0, stab_sweep=33,
-    win_y=0.60, win_from=0.09, win_to=0.86, win_pitch=0.53,
-    doors=(0.08, 0.22, 0.54, 0.85),
+    win_y=0.64, win_from=0.11, win_to=0.86, win_pitch=0.53,
+    doors=(0.079, 0.22, 0.54, 0.85), door_w=1.07, door_y=0.39, door_h=0.42,
     engines=[Engine("wing", z=0.26, dia=3.0, length=5.4, fwd=0.62, gc=0.95)],
-    gear_h=2.1, nose_gear=0.085, main_gear=(0.50,), axles=(2,), wheel_d=1.27, belly_fairing=0.4, track=10.7,
+    gear_h=2.4, nose_gear=0.106, main_gear=(0.50,), axles=(2,), wheel_d=1.27, belly_fairing=0.4, track=10.7,
 )
 add("A333", A333)
-add("A332", replace(A333, name="Airbus A330-200", L=58.8, fin_h=8.8, doors=(0.085, 0.24, 0.56, 0.85), wing_x=0.36))
+add("A332", replace(A333, name="Airbus A330-200", L=58.8, fin_h=8.8, doors=(0.086, 0.24, 0.56, 0.85), wing_x=0.36,
+                    nose_gear=0.115))
 add("A339", replace(A333, name="Airbus A330-900", span=64.0, wingtip="sharklet", winglet_h=3.6,
                     engines=[Engine("wing", z=0.26, dia=3.65, length=5.9, fwd=0.66, gc=0.75)]))
 add("A338", replace(SPECS["A332"], name="Airbus A330-800", span=64.0, wingtip="sharklet", winglet_h=3.6,
@@ -251,11 +299,12 @@ A343 = replace(A333, name="Airbus A340-300", span=60.3,
                         Engine("wing", z=0.56, dia=2.2, length=4.2, fwd=0.65, drop=0.2)],
                main_gear=(0.48, 0.53), axles=(2, 1))
 add("A343", A343)
-add("A342", replace(A343, name="Airbus A340-200", L=59.4))
-add("A346", replace(A343, name="Airbus A340-600", L=75.4, span=63.45, fin_h=9.0, doors=(0.07, 0.20, 0.45, 0.65, 0.86),
+add("A342", replace(A343, name="Airbus A340-200", L=59.4, doors=(0.085, 0.24, 0.56, 0.85), nose_gear=0.114))
+add("A346", replace(A343, name="Airbus A340-600", L=75.4, span=63.45, fin_h=9.0, doors=(0.067, 0.20, 0.45, 0.65, 0.86),
+                    nose_gear=0.09,
                     engines=[Engine("wing", z=0.23, dia=2.9, length=5.3, fwd=0.62, gc=1.0),
                              Engine("wing", z=0.56, dia=2.9, length=5.3, fwd=0.62, drop=0.15)], axles=(2, 2)))
-add("A345", replace(SPECS["A346"], name="Airbus A340-500", L=67.9, doors=(0.08, 0.22, 0.50, 0.85)))
+add("A345", replace(SPECS["A346"], name="Airbus A340-500", L=67.9, doors=(0.074, 0.22, 0.50, 0.85), nose_gear=0.1))
 
 A359 = Spec(
     "Airbus A350-900", L=66.8, D=6.1, W=5.96, span=64.75,
@@ -275,34 +324,45 @@ add("A35K", replace(A359, name="Airbus A350-1000", L=73.8, doors=(0.075, 0.29, 0
 
 A388 = Spec(
     "Airbus A380-800", L=72.7, D=8.4, W=7.14, span=79.75,
-    nose_len=1.15, nose_blen=0.9, nose_tip=0.30, nose_e=2.4, nose_be=2.2,
+    nose_top=((0.0, 0.34), (0.25, 0.39), (0.5, 0.42), (1.0, 0.48), (1.5, 0.52), (2.0, 0.58), (2.5, 0.64),
+              (3.0, 0.69), (3.5, 0.73), (4.0, 0.78), (4.5, 0.81), (5.0, 0.84), (5.5, 0.86), (6.0, 0.88), (7.0, 0.92),
+              (8.0, 0.94), (9.0, 0.96), (10.0, 0.98), (11.0, 0.99), (12.5, 1.0)),
+    nose_bot=((0.0, 0.26), (0.25, 0.2), (0.5, 0.18), (1.0, 0.14), (1.5, 0.12), (2.0, 0.1), (2.5, 0.08),
+              (3.0, 0.07), (3.75, 0.04), (5.0, 0.0)),
+    ck=(1.8, 3.65, 0.51, 0.64, 0.64, 0.51, 0.52), ck_frames=(0.4, 0.75),
     tail_len=2.6, tail_top=0.78, tail_bot=0.62,
     wing_x=0.35, root=17.5, kink=0.3, kink_chord=11.0, tip=4.0, sweep=35, dihedral=5.5, wingtip="fence", winglet_h=1.3,
     fin_x=0.81, fin_root=12.5, fin_tip=4.5, fin_h=10.0, fin_sweep=42, dorsal=0.1,
     stab_x=0.875, stab_span=30.4, stab_root=8.0, stab_tip=3.0, stab_sweep=35, stab_y=0.55,
-    win_y=0.36, win_from=0.10, win_to=0.85, win_pitch=0.53, win_w=0.30, win_h=0.44, double_deck=True,
-    doors=(0.085, 0.27, 0.44, 0.63, 0.83), door_y=0.12, door_h=0.24, cockpit_x=0.3,
+    win_y=0.44, win_from=0.107, win_to=0.85, win_pitch=0.53, win_w=0.30, win_h=0.44, double_deck=True,
+    doors=(0.08, 0.215, 0.44, 0.63, 0.83), door_y=0.29, door_h=0.28, door_w=1.07,
     engines=[Engine("wing", z=0.23, dia=3.5, length=6.4, fwd=0.62, gc=1.35),
              Engine("wing", z=0.55, dia=3.5, length=6.4, fwd=0.62, drop=0.15)],
-    gear_h=2.2, nose_gear=0.06, main_gear=(0.47, 0.53), axles=(2, 3), wheel_d=1.4, belly_fairing=0.5, track=12.5,
+    gear_h=2.2, nose_gear=0.072, main_gear=(0.47, 0.53), axles=(2, 3), wheel_d=1.4, belly_fairing=0.5, track=12.5,
 )
 add("A388", A388)
 
 A306 = Spec(
     "Airbus A300-600", L=54.1, D=5.64, W=5.64, span=44.84,
-    nose_len=1.5, nose_blen=1.05, nose_tip=0.40, nose_e=2.1,
+    nose_top=((0.0, 0.42), (0.25, 0.49), (0.5, 0.51), (1.0, 0.56), (1.5, 0.62), (1.75, 0.67), (2.0, 0.71),
+              (2.5, 0.76), (3.0, 0.8), (3.5, 0.83), (4.0, 0.86), (4.5, 0.89), (5.0, 0.91), (5.5, 0.93), (6.0, 0.95),
+              (6.5, 0.96), (7.0, 0.97), (7.5, 0.99), (8.5, 1.0)),
+    nose_bot=((0.0, 0.39), (0.25, 0.31), (0.5, 0.27), (1.0, 0.21), (1.5, 0.17), (2.0, 0.14), (2.5, 0.11),
+              (3.0, 0.09), (3.5, 0.06), (4.0, 0.04), (4.5, 0.02), (5.25, 0.0)),
+    ck=(1.4, 3.55, 0.57, 0.69, 0.69, 0.57, 0.58), ck_frames=(0.38, 0.72),
     tail_len=2.9, tail_top=0.80, tail_bot=0.64,
     wing_x=0.37, root=10.0, kink=0.3, kink_chord=6.0, tip=2.0, sweep=30, dihedral=5.5, wingtip="fence", winglet_h=1.0,
     fin_x=0.82, fin_root=8.6, fin_tip=3.0, fin_h=8.0, fin_sweep=42, dorsal=0.15,
     stab_x=0.88, stab_span=16.3, stab_root=5.0, stab_tip=1.8, stab_sweep=33,
-    win_y=0.60, win_from=0.10, win_to=0.85, win_pitch=0.53,
-    doors=(0.08, 0.22, 0.86), exits=(0.52,),
+    win_y=0.63, win_from=0.125, win_to=0.85, win_pitch=0.53,
+    doors=(0.088, 0.22, 0.86), exits=(0.52,), door_w=1.07, door_y=0.39, door_h=0.41,
     engines=[Engine("wing", z=0.27, dia=2.95, length=5.4, fwd=0.62, gc=0.9)],
-    gear_h=2.1, nose_gear=0.085, main_gear=(0.50,), axles=(2,), wheel_d=1.24, belly_fairing=0.4, track=9.6,
+    gear_h=2.4, nose_gear=0.112, main_gear=(0.50,), axles=(2,), wheel_d=1.24, belly_fairing=0.4, track=9.6,
 )
 add("A306", A306)
 add("A30B", replace(A306, name="Airbus A300B4", wingtip="plain"))
-add("A310", replace(A306, name="Airbus A310", L=46.66, span=43.9, doors=(0.09, 0.86), exits=(0.52,)))
+add("A310", replace(A306, name="Airbus A310", L=46.66, span=43.9, doors=(0.102, 0.86), exits=(0.52,), nose_gear=0.13,
+                    win_from=0.145))
 
 # ------------------------------------------------------------ tail-engined jets
 def tailjet(name, L, D, span, eng_dia, eng_len, eng_x, *, W=0.0, root=None, tip=None, sweep=15, dihedral=3,
@@ -664,3 +724,213 @@ add("BE35", replace(SPECS["BE36"], name="Beechcraft Bonanza V35", L=8.05))
 add("G2CA", heli("Guimbal Cabri G2", 6.31, 7.2, 2.6, D=1.3, W=1.24, fenestron=True, blades=3, gear_h=0.4, fin_h=0.8))
 add("GY80", replace(SPECS["P28A"], name="Gardan Horizon", L=6.64, span=9.7))
 add("F8L", replace(SPECS["RV7"], name="Sequoia Falco F8L", L=6.5, span=8.0))
+
+
+# ------------------------------------------------------------ measured noses (traced from drawings)
+def patch(codes, **kw):
+    """Apply the same measured nose/cockpit to every variant of a family."""
+    for c in codes:
+        SPECS[c] = replace(SPECS[c], **kw)
+
+
+ERJ_NOSE = dict(
+    nose_top=((0.0, 0.09), (0.5, 0.25), (1.0, 0.33), (1.5, 0.40), (2.0, 0.49), (2.5, 0.60), (3.0, 0.79),
+              (3.5, 0.93), (4.0, 0.97), (5.0, 0.99), (6.0, 1.0)),
+    nose_bot=((0.0, 0.09), (0.25, 0.03), (0.6, 0.0)),
+    ck=(2.5, 3.8, 0.55, 0.78, 0.80, 0.60, 0.60), ck_frames=(0.5,),
+    win_y=0.64, door_y=0.17, door_h=0.76, door_w=0.7, gear_h=1.2, nose_gear=0.075,
+)
+patch(["E145", "E45X"], **ERJ_NOSE, doors=(0.15,), win_from=0.195)
+patch(["E135", "E35L"], **{**ERJ_NOSE, "nose_gear": 0.085}, doors=(0.17,), win_from=0.22)
+
+ATR_NOSE = dict(
+    nose_top=((0.0, 0.36), (0.25, 0.45), (0.5, 0.52), (0.75, 0.57), (1.0, 0.62), (1.25, 0.68), (1.5, 0.79),
+              (1.75, 0.88), (2.0, 0.91), (2.25, 0.95), (2.5, 0.98), (3.0, 1.0)),
+    nose_bot=((0.0, 0.27), (0.25, 0.18), (0.5, 0.12), (0.75, 0.09), (1.0, 0.07), (1.25, 0.04), (1.5, 0.02), (2.0, 0.0)),
+    ck=(1.25, 2.85, 0.63, 0.80, 0.80, 0.64, 0.65), ck_frames=(0.5,),
+    win_y=0.59, door_y=0.13, door_h=0.70, door_w=1.2, gear_h=0.67,
+)
+patch(["AT76", "AT75", "AT72"], **ATR_NOSE, doors=(0.135, 0.83), win_from=0.215, nose_gear=0.064)
+patch(["AT46", "AT45", "AT43"], **ATR_NOSE, doors=(0.16, 0.80), win_from=0.255, nose_gear=0.077)
+
+A220_NOSE = dict(
+    nose_top=((0.0, 0.35), (0.25, 0.42), (0.5, 0.47), (0.75, 0.52), (1.0, 0.58), (1.5, 0.67), (2.0, 0.74),
+              (2.5, 0.81), (3.0, 0.88), (3.5, 0.92), (4.0, 0.95), (4.5, 0.98), (5.75, 1.0)),
+    nose_bot=((0.0, 0.26), (0.25, 0.19), (0.5, 0.16), (1.0, 0.12), (1.5, 0.09), (2.0, 0.07), (3.0, 0.05),
+              (4.0, 0.02), (6.75, 0.0)),
+    ck=(1.3, 3.1, 0.58, 0.74, 0.74, 0.58, 0.62), ck_frames=(0.4, 0.75),
+    win_y=0.66, door_y=0.36, door_h=0.47, wingtip="canted", winglet_h=1.4,
+)
+patch(["BCS3"], **A220_NOSE, doors=(0.113, 0.83), win_from=0.17, nose_gear=0.09)
+patch(["BCS1"], **A220_NOSE, doors=(0.125, 0.82), win_from=0.19, nose_gear=0.10)
+
+EJET_NOSE = dict(
+    nose_top=((0.0, 0.21), (0.5, 0.38), (1.0, 0.52), (1.5, 0.63), (2.0, 0.72), (2.5, 0.78), (3.0, 0.83),
+              (3.5, 0.87), (4.0, 0.90), (5.0, 0.93), (6.0, 0.96), (8.0, 1.0)),
+    nose_bot=((0.0, 0.21), (0.5, 0.10), (1.0, 0.055), (2.0, 0.02), (3.0, 0.0)),
+    ck=(1.55, 3.6, 0.60, 0.76, 0.77, 0.60, 0.60), ck_frames=(0.35, 0.7),
+    win_y=0.67, door_y=0.33, door_h=0.56,
+)
+for code in ("E190", "E195", "E170", "E75L", "E75S", "E290", "E295"):
+    L_ = SPECS[code].L
+    patch([code], **EJET_NOSE, doors=(round(5.05 / L_, 3),) + tuple(SPECS[code].doors[1:]),
+          nose_gear=round(4.7 / L_, 3), win_from=round(6.6 / L_, 3))
+
+A350_NOSE = dict(
+    nose_top=((0.0, 0.26), (0.5, 0.33), (1.0, 0.39), (1.5, 0.47), (2.0, 0.55), (2.5, 0.62), (3.0, 0.67),
+              (4.0, 0.75), (5.0, 0.82), (6.0, 0.87), (7.0, 0.91), (8.0, 0.94), (9.0, 0.97), (10.5, 1.0)),
+    nose_bot=((0.0, 0.26), (0.5, 0.17), (1.0, 0.12), (2.0, 0.07), (3.0, 0.04), (4.0, 0.02), (5.5, 0.0)),
+    ck=(2.05, 3.5, 0.48, 0.63, 0.61, 0.48, 0.52), ck_frames=(0.5,),
+    win_y=0.53, door_y=0.35, door_h=0.32, door_w=1.07,
+)
+patch(["A359"], **A350_NOSE, doors=(0.087, 0.30, 0.60, 0.86), nose_gear=0.072, win_from=0.115)
+patch(["A35K"], **A350_NOSE, doors=(0.079, 0.29, 0.58, 0.86), nose_gear=0.065, win_from=0.105)
+
+DASH8_NOSE = dict(
+    nose_top=((0.0, 0.19), (0.5, 0.35), (1.0, 0.46), (1.5, 0.54), (2.0, 0.65), (2.5, 0.76), (3.0, 0.85),
+              (3.5, 0.91), (4.0, 0.95), (5.0, 0.98), (6.0, 1.0)),
+    nose_bot=((0.0, 0.19), (0.5, 0.08), (1.0, 0.04), (2.0, 0.01), (3.0, 0.0)),
+    ck=(2.1, 4.65, 0.65, 0.815, 0.815, 0.65, 0.65), ck_frames=(0.45,),
+    win_y=0.60, door_y=0.18, door_h=0.70, door_w=0.9,
+)
+for code in ("DH8D", "DH8C", "DH8A", "DH8B"):
+    L_ = SPECS[code].L
+    patch([code], **DASH8_NOSE, doors=(round(5.95 / L_, 3), SPECS[code].doors[-1]),
+          nose_gear=round(2.3 / L_, 3), win_from=round(7.3 / L_, 3))
+
+GULF_NOSE = dict(
+    nose_top=((0.0, 0.23), (0.5, 0.39), (1.0, 0.48), (1.5, 0.56), (2.0, 0.62), (2.5, 0.73), (3.0, 0.86),
+              (3.5, 0.93), (4.0, 0.96), (5.0, 0.99), (6.0, 1.0)),
+    nose_bot=((0.0, 0.23), (0.5, 0.12), (1.0, 0.08), (2.0, 0.025), (3.0, 0.01), (3.5, 0.0)),
+    ck=(2.0, 3.9, 0.615, 0.80, 0.80, 0.615, 0.615), ck_frames=(0.5,),
+    win_y=0.575, door_y=0.08, door_h=0.80, door_w=0.9, cockpit="bizjet",
+)
+for code in ("GLF6", "GA7C", "GA8C", "GA6C", "GA5C", "GLF5", "GLF4"):
+    L_ = SPECS[code].L
+    patch([code], **GULF_NOSE, doors=(round(4.85 / L_, 3),), nose_gear=round(2.65 / L_, 3),
+          win_from=round(7.0 / L_, 3), win_w=0.62, win_h=0.48)
+
+
+# ------------------------------------------------------------ light aircraft glazing (from photos)
+def ga_patch(codes, ref_L, top, bot, ws=(), side=(), canopy=()):
+    """Measured on the reference type; scaled along the length for the other variants."""
+    for c in codes:
+        k = SPECS[c].L / ref_L
+        sc = lambda pts: tuple((round(x * k, 2), y) for x, y in pts)
+        SPECS[c] = replace(
+            SPECS[c], nose_top=sc(top), nose_bot=sc(bot),
+            ga_ws=(ws[0] * k, ws[1] * k, ws[2]) if ws else (),
+            ga_side=tuple((a * k, b_ * k, y0, y1) for a, b_, y0, y1 in side),
+            ga_canopy=(canopy[0] * k, canopy[1] * k, canopy[2]) if canopy else ())
+
+
+ga_patch(["C172", "C152", "C150", "C182", "C82R", "C206", "C210"], 8.28,
+         top=((0, 0.45), (0.3, 0.56), (0.8, 0.66), (1.4, 0.71), (1.85, 0.73), (2.2, 0.85), (2.55, 0.96), (2.8, 1.0)),
+         bot=((0, 0.45), (0.2, 0.3), (0.5, 0.18), (1.0, 0.08), (1.6, 0.0)),
+         ws=(1.85, 2.8, 0.73), side=((2.9, 3.75, 0.58, 0.97), (3.85, 4.5, 0.6, 0.95)))
+ga_patch(["J3", "PA18", "C170", "CH7A"], 6.83,
+         top=((0, 0.5), (0.3, 0.6), (0.8, 0.68), (1.55, 0.74), (1.9, 0.88), (2.2, 1.0)),
+         bot=((0, 0.5), (0.2, 0.32), (0.6, 0.15), (1.2, 0.0)),
+         ws=(1.55, 2.2, 0.74), side=((2.25, 3.2, 0.55, 0.97),))
+ga_patch(["P28A", "P28B", "P28R", "P28T", "P32R", "PA46", "BE36", "BE33", "BE35", "GY80"], 7.25,
+         top=((0, 0.48), (0.4, 0.6), (1.0, 0.68), (1.75, 0.72), (2.0, 0.76), (2.4, 0.93), (2.7, 1.0)),
+         bot=((0, 0.48), (0.2, 0.32), (0.6, 0.15), (1.2, 0.04), (1.6, 0.0)),
+         ws=(1.95, 2.7, 0.74), side=((2.75, 3.6, 0.58, 0.95), (3.7, 4.15, 0.6, 0.9)))
+ga_patch(["SR22", "S22T", "SR20"], 7.92,
+         top=((0, 0.45), (0.4, 0.58), (1.0, 0.66), (1.6, 0.70), (1.8, 0.73), (2.3, 0.92), (2.7, 1.0)),
+         bot=((0, 0.45), (0.2, 0.3), (0.6, 0.15), (1.2, 0.04), (1.6, 0.0)),
+         ws=(1.8, 2.6, 0.72), side=((2.65, 3.7, 0.55, 0.96), (3.8, 4.3, 0.58, 0.88)))
+ga_patch(["PA44", "PA34", "PA31", "BE58"], 8.41,
+         top=((0, 0.45), (0.5, 0.6), (1.2, 0.68), (2.0, 0.72), (2.5, 0.9), (2.85, 1.0)),
+         bot=((0, 0.45), (0.3, 0.25), (0.8, 0.1), (1.5, 0.0)),
+         ws=(2.0, 2.8, 0.72), side=((2.85, 3.75, 0.58, 0.95), (3.85, 4.35, 0.6, 0.9)))
+ga_patch(["DA40", "DA50", "DV20"], 8.06,
+         top=((0, 0.42), (0.4, 0.55), (1.0, 0.64), (1.7, 0.70), (2.1, 0.82), (2.6, 0.96), (3.0, 1.0)),
+         bot=((0, 0.42), (0.3, 0.25), (0.8, 0.1), (1.5, 0.0)),
+         canopy=(1.75, 4.1, 0.66))
+ga_patch(["DA42", "DA62"], 8.56,
+         top=((0, 0.42), (0.5, 0.58), (1.2, 0.66), (2.0, 0.71), (2.4, 0.83), (2.9, 0.97), (3.3, 1.0)),
+         bot=((0, 0.42), (0.3, 0.25), (0.8, 0.1), (1.5, 0.0)),
+         canopy=(2.0, 4.4, 0.67))
+ga_patch(["SIRA", "P208", "RV7", "RV8", "RV10", "F8L"], 6.61,
+         top=((0, 0.45), (0.4, 0.57), (1.0, 0.65), (1.6, 0.70), (2.0, 0.85), (2.4, 0.97), (2.8, 1.0)),
+         bot=((0, 0.45), (0.25, 0.28), (0.7, 0.12), (1.3, 0.0)),
+         canopy=(1.65, 3.4, 0.66))
+ga_patch(["TFUN"], 7.8,
+         top=((0, 0.45), (0.4, 0.56), (1.0, 0.63), (1.8, 0.68), (2.2, 0.85), (2.7, 0.98), (3.0, 1.0)),
+         bot=((0, 0.45), (0.3, 0.26), (0.8, 0.1), (1.4, 0.0)),
+         canopy=(1.85, 3.5, 0.64))
+ga_patch(["GLID"], 6.7,
+         top=((0, 0.35), (0.3, 0.5), (0.7, 0.62), (1.2, 0.8), (1.8, 0.95), (2.4, 1.0)),
+         bot=((0, 0.35), (0.3, 0.18), (0.8, 0.06), (1.4, 0.0)),
+         canopy=(0.45, 2.45, 0.56))
+ga_patch(["PC21", "PC7"], 11.23,
+         top=((0, 0.5), (0.5, 0.6), (1.5, 0.66), (2.4, 0.72), (2.9, 0.92), (3.4, 1.0)),
+         bot=((0, 0.5), (0.4, 0.3), (1.0, 0.12), (1.8, 0.0)),
+         canopy=(2.45, 5.4, 0.72))
+
+
+# ------------------------------------------------------------ business jets (from photos)
+def scaled_nose(codes, ref_D, top, bot, ck, door_x, win_x, ngear_x, **kw):
+    """A measured bizjet nose, scaled by fuselage height to related types."""
+    for c in codes:
+        s0 = SPECS[c]
+        k = s0.D / ref_D
+        sc = lambda pts: tuple((round(x * k, 2), y) for x, y in pts)
+        SPECS[c] = replace(
+            s0, nose_top=sc(top), nose_bot=sc(bot), ck=(ck[0] * k, ck[1] * k) + tuple(ck[2:]),
+            doors=(round(door_x * k / s0.L, 3),) + tuple(s0.doors[1:]),
+            win_from=round(win_x * k / s0.L, 3), nose_gear=round(ngear_x * k / s0.L, 3), **kw)
+
+
+CITATION = dict(
+    top=((0, 0.20), (0.5, 0.42), (1.0, 0.49), (1.5, 0.58), (2.0, 0.66), (2.5, 0.81), (3.0, 0.91), (3.5, 0.95),
+         (4.0, 0.98), (4.6, 1.0)),
+    bot=((0, 0.20), (0.3, 0.08), (1.0, 0.03), (2.0, 0.01), (3.0, 0.0)),
+    ck=(2.0, 3.9, 0.60, 0.84, 0.84, 0.61, 0.62), door_x=4.0, win_x=5.0, ngear_x=1.6,
+)
+scaled_nose(["C56X", "C560", "C550", "C55B", "C25A", "C25B", "C25C", "C525", "C25M", "C510", "C68A", "C700", "C680",
+             "C650", "C750", "E55P", "E50P", "E550", "E545", "LJ45", "LJ40", "LJ60", "LJ35", "H25B", "H25C", "HA4T",
+             "PRM1", "BE40", "PC24", "HDJT", "EA50", "G280", "GALX", "ASTR", "F2TH", "FA6X", "FA7X", "FA8X", "F900",
+             "FA50"], 1.9, **CITATION, ck_frames=(0.5, 0.82), win_y=0.70, door_y=0.12, door_h=0.75)
+scaled_nose(["GLEX", "GL5T", "GL7T", "CL35", "CL30", "CL60"], 2.6,
+            top=GULF_NOSE["nose_top"], bot=GULF_NOSE["nose_bot"], ck=GULF_NOSE["ck"], door_x=4.85, win_x=6.4,
+            ngear_x=2.65, ck_frames=(0.5,), win_y=0.6, door_y=0.08, door_h=0.80)
+
+# single turboprops: measured on the PC-12, scaled along the length
+for code in ("PC12", "TBM9", "TBM7", "TBM8", "M600", "M700", "P46T"):
+    s0 = SPECS[code]
+    k = s0.L / 14.4
+    sc = lambda pts: tuple((round(x * k, 2), y) for x, y in pts)
+    SPECS[code] = replace(
+        s0, nose_top=sc(((0, 0.51), (0.7, 0.65), (1.0, 0.70), (2.0, 0.71), (2.9, 0.73), (3.3, 0.86), (3.75, 0.97), (4.5, 1.0))),
+        nose_bot=sc(((0, 0.51), (0.7, 0.26), (1.2, 0.2), (2.0, 0.13), (3.0, 0.05), (3.8, 0.0))),
+        ck=(3.05 * k, 4.45 * k, 0.66, 0.93, 0.95, 0.70, 0.72), ck_frames=(0.42,),
+        win_y=0.66, win_from=round(5.2 / 14.4, 3), nose_gear=round(2.5 / 14.4, 3))
+
+# CRJ and Fokker: from photos (three-quarter views, so positions are estimated to about 0.2 m)
+CRJ_NOSE = dict(
+    nose_top=((0, 0.30), (0.5, 0.45), (1.0, 0.54), (1.5, 0.62), (2.0, 0.70), (2.5, 0.80), (3.0, 0.88), (3.5, 0.94),
+              (4.0, 0.97), (5.0, 1.0)),
+    nose_bot=((0, 0.30), (0.4, 0.15), (1.0, 0.06), (2.0, 0.02), (3.0, 0.0)),
+    ck=(1.9, 3.5, 0.62, 0.86, 0.84, 0.64, 0.66), ck_frames=(0.45,), win_y=0.62, door_y=0.15, door_h=0.68,
+)
+for code in ("CRJ9", "CRJX", "CRJ7", "CRJ2", "CRJ1"):
+    L_ = SPECS[code].L
+    patch([code], **CRJ_NOSE, doors=(round(4.1 / L_, 3),) + tuple(SPECS[code].doors[1:]),
+          nose_gear=round(2.0 / L_, 3), win_from=round(5.4 / L_, 3))
+F100_NOSE = dict(
+    nose_top=((0, 0.38), (0.5, 0.5), (1.0, 0.58), (1.5, 0.66), (2.0, 0.74), (2.5, 0.81), (3.0, 0.87), (3.5, 0.92),
+              (4.0, 0.95), (5.0, 0.99), (6.0, 1.0)),
+    nose_bot=((0, 0.38), (0.4, 0.24), (1.0, 0.13), (2.0, 0.05), (3.0, 0.01), (3.6, 0.0)),
+    ck=(1.3, 3.0, 0.60, 0.76, 0.76, 0.60, 0.62), ck_frames=(0.45,), win_y=0.62, door_y=0.2, door_h=0.6,
+)
+for code in ("F100", "F70"):
+    L_ = SPECS[code].L
+    patch([code], **F100_NOSE, doors=(round(3.6 / L_, 3),) + tuple(SPECS[code].doors[1:]),
+          nose_gear=round(2.6 / L_, 3), win_from=round(4.9 / L_, 3))
+
+# helicopter cabins: longer pods, measured against an H145 side drawing (cabin ~55% of the length)
+for code, sp in list(SPECS.items()):
+    if sp.kind == "heli" and code not in ("R44", "R22", "R66", "G2CA"):
+        SPECS[code] = replace(sp, root=round(min(sp.L * 0.55, sp.root * 1.25), 2))
