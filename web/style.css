@@ -103,6 +103,7 @@ main { padding: 20px 28px 60px; }
   display: grid; place-items: center; min-height: 0;
 }
 .art svg { width: 72%; height: 72%; fill: #fff; opacity: .92; filter: drop-shadow(0 6px 6px rgba(0,0,0,.35)); }
+.art .art-img { width: 90%; height: 84%; object-fit: contain; filter: drop-shadow(0 6px 6px rgba(0,0,0,.35)); }
 .art .tail {
   position: absolute; left: 8px; bottom: 6px; font: 700 12px/1 ui-monospace, monospace;
   color: #fff; opacity: .85; letter-spacing: .08em;
@@ -166,6 +167,9 @@ main { padding: 20px 28px 60px; }
 @media (max-width: 640px) { .detail { grid-template-columns: 1fr; } .detail .card { max-width: 260px; } }
 .back h2 { margin: 0 0 4px; }
 .back .muted { color: var(--muted); }
+.back .plan { margin: 10px 0 4px; padding: 10px; border-radius: 10px; background: linear-gradient(180deg, #3b4558, #222836); text-align: center; }
+.back .plan img { width: 100%; max-height: 180px; object-fit: contain; filter: drop-shadow(0 4px 4px rgba(0,0,0,.35)); }
+.back .plan figcaption { font-size: 11px; color: #aab3c5; letter-spacing: .06em; text-transform: uppercase; margin-top: 4px; }
 dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 16px 0; }
 dl.facts dt { color: var(--muted); }
 dl.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
@@ -181,6 +185,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   border-radius: 10px; padding: 10px 12px; display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: center;
 }
 .dex-entry svg { width: 40px; height: 40px; fill: var(--tier, var(--common)); }
+.dex-entry:has(.art-img) { grid-template-columns: 64px 1fr; }
+.dex-entry .art-img { width: 64px; height: 40px; object-fit: contain; }
 .dex-entry .code { font: 700 15px/1.1 ui-monospace, monospace; }
 .dex-entry .nm { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dex-entry .ct { font-size: 12px; }
@@ -287,6 +293,7 @@ table.sightings tr.sel td { background: rgba(255,181,71,.10); }
 }
 .sleeve .s-art { position: absolute; inset: 18% 18% 45%; display: grid; place-items: center; }
 .sleeve .s-art svg { width: 100%; height: 100%; fill: #2a3448; }
+.sleeve .s-art .art-img { width: 100%; height: 100%; object-fit: contain; filter: grayscale(1) brightness(.3) contrast(.8); opacity: .75; }
 .sleeve .s-reg { font-size: 18px; font-weight: 800; color: #aab3c5; letter-spacing: .02em; }
 .sleeve .s-type { font-size: 12px; }
 .sleeve .s-meta { font-size: 11px; opacity: .8; }

@@ -24,6 +24,7 @@ from .rarity import RarityModel, SPECIALS_SCHEMA, load_seed_specials
 from . import tracks
 from . import fleet
 from . import editions
+from . import art
 import threading
 
 STATIC = cfgmod.ROOT / "web"
@@ -141,11 +142,14 @@ class App:
             if not editions.locked_at(c):
                 for p in prov:
                     p["edition"], p["retired"], p["provisional"] = None, None, True
+                    art.annotate(p, self.cfg.art_style)
                 return prov
             editions.ensure_first_editions(c, prov)
             eds = editions.by_hex(c)
             pending = dict(c.execute("SELECT hex, rarity FROM edition_pending").fetchall())
         out = editions.apply(prov, eds, POINTS, pending, self._relabel)
+        for d in out:
+            art.annotate(d, self.cfg.art_style)
         return sorted(out, key=lambda d: d["card_no"])
 
     def summary(self) -> dict:
@@ -323,7 +327,7 @@ class App:
             "subtitle": " · ".join(x for x in [o["country"] if o else None,
                                                  (info or {}).get("alliance"),
                                                  f"ICAO {op}"] if x),
-            "airline": info, "rows": rows, **self._progress(rows),
+            "airline": info, "rows": [self._art_row(r) for r in rows], **self._progress(rows),
         }
 
     def _spotted_all(self) -> list[dict]:
@@ -368,9 +372,15 @@ class App:
         return {
             "key": k, "kind": by, "name": name,
             "subtitle": f"{len(rows)} airframes heard by your receiver" if rows else "",
-            "rows": rows, "collected": sum(r["collected"] for r in rows), "total": len(rows),
+            "rows": [self._art_row(r) for r in rows], "collected": sum(r["collected"] for r in rows), "total": len(rows),
             "unconfirmed": 0, "hidden": 0,
         }
+
+    def _art_row(self, r: dict) -> dict:
+        """Binder sleeves always show the side profile."""
+        art.annotate(r, self.cfg.art_style)
+        r["art_img"] = r.get("art_side")
+        return r
 
     def set_hidden(self, op: str, hx: str, hidden: bool) -> None:
         with self.conn() as conn:
@@ -386,6 +396,7 @@ class App:
             e = out.setdefault(t, {
                 "type": t, "name": c.get("type_name") or c.get("model"), "desc": c.get("desc"),
                 "art": c["art"], "count": 0, "rarity": c["rarity"], "first_seen": c["first_seen"],
+                "art_img": c.get("art_side"),
             })
             e["count"] += 1
             if TIERS.index(c["rarity"]) > TIERS.index(e["rarity"]):
@@ -500,6 +511,22 @@ def make_handler(app: App):
                     limit = q.get("limit", ["200"])[0]
                     return self._json(app.log(float(before) if before else None,
                                               int(limit) if limit.isdigit() else 200))
+                if p == "/api/art":
+                    return self._json({"style": app.cfg.art_style, "version": art.VERSION,
+                                       "views": art.VIEWS, "items": art.catalogue()})
+                m = re.fullmatch(r"/art/([A-Za-z0-9_]+(?:-F)?)/(side|top|front|below)\.svg", p)
+                if m:
+                    body = art.svg(m.group(1), m.group(2))
+                    if not body:
+                        self.send_error(404)
+                        return
+                    self.send_response(200)
+                    self.send_header("Content-Type", "image/svg+xml")
+                    self.send_header("Cache-Control", "public, max-age=2592000, immutable")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
                 if p.startswith("/logo/"):
                     # /logo/<ICAO>/<variant>.svg — cached Soaring Symbols mark
                     parts = p.split("/")

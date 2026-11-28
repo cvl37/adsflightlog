@@ -58,6 +58,7 @@ class Config:
     rarity_learn_days: float = 28
     editions_stable_days: float = 7
     editions_check_days: float = 7
+    art_style: str = "vector"      # vector | classic (old silhouettes)
 
     @property
     def tar1090_html(self) -> Path:
@@ -108,6 +109,7 @@ def load(path: str | Path | None = None) -> Config:
         editions_check_days=float(raw.get("editions", {}).get("check_days", 7)),
         web_host=str(web.get("host", "0.0.0.0")),
         web_port=int(web.get("port", 8642)),
+        art_style=str(web.get("art", "vector")),
     )
 
 

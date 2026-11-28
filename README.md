@@ -210,3 +210,20 @@ The SQLite database is at `data/adsflightlog.db` (git-ignored). It has three kin
   tar1090's bundled copy goes stale. Type and airline names come from tar1090's
   local files. Whenever the data updates, cards caught as "unidentified" are
   filled in. To force a refresh, run `python3 -m adsflightlog.refdb --force`.
+
+## Card art
+
+Every card shows a flat vector drawing of its exact type and variant, in an
+all-white livery so it never clashes with the airline on the card. The
+drawings are generated on demand from real dimensions in
+`adsflightlog/art/models.py` by `adsflightlog/art/draw.py`; there is no build
+step.
+
+- Card face: side profile. Epic and legendary cards get a special angle
+  (head-on or belly view). The card back shows the plan view.
+- Types without their own drawing fall back to a generic one by ICAO
+  description (e.g. `L1P` single piston, `H2T` twin-turbine helicopter).
+- Widebodies of cargo airlines are drawn as freighters (no cabin windows).
+- `/art.html` is a gallery of every drawing in all four views.
+- Roll back to the original silhouettes with `art = "classic"` under `[web]`
+  in `config.toml`, then restart the web service.

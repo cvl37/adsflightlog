@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Card Art Gallery</title>
+<style>
+  :root { --bg: #14171f; --panel: #1d222d; --line: #2c3342; --text: #e8e6e0; --muted: #98a0b0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; background: rgba(20,23,31,.95); backdrop-filter: blur(6px);
+           border-bottom: 1px solid var(--line); padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  h1 { font-size: 18px; margin: 0 12px 0 0; }
+  input, select { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: inherit; }
+  .count { color: var(--muted); font-size: 13px; }
+  a { color: #8fb7ff; }
+  main { padding: 16px; display: grid; gap: 14px; }
+  .row { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .row h2 { font-size: 14px; margin: 0 0 8px; display: flex; gap: 10px; align-items: baseline; }
+  .row h2 code { font: 700 14px ui-monospace, monospace; color: #ffd27a; }
+  .row h2 .k { font-weight: 400; color: var(--muted); font-size: 12px; }
+  .views { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .views figure { margin: 0; }
+  .pane { height: 170px; border-radius: 8px; display: grid; place-items: center;
+          background: radial-gradient(circle at 30% 20%, #6f8fb8, transparent 60%), linear-gradient(180deg, #4b6a96, #2a2f4a); }
+  .pane img { max-width: 92%; max-height: 150px; object-fit: contain; filter: drop-shadow(0 5px 5px rgba(0,0,0,.35)); }
+  figcaption { font-size: 11px; color: var(--muted); margin-top: 3px; text-transform: uppercase; letter-spacing: .06em; }
+  @media (max-width: 700px) { .views { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Card art gallery</h1>
+  <input id="q" type="search" placeholder="Filter: B738, Airbus, heli…" aria-label="Filter">
+  <select id="kind" aria-label="Kind">
+    <option value="">All kinds</option><option value="jet">Jets</option><option value="prop">Propeller</option>
+    <option value="heli">Helicopters</option><option value="balloon">Balloons</option>
+  </select>
+  <label class="count"><input id="mine" type="checkbox"> only types in my binder</label>
+  <span class="count" id="count"></span>
+  <a href="/">← Back to the binder</a>
+</header>
+<main id="list"></main>
+<script>
+"use strict";
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const LABEL = { side: "Side · card face", top: "Plan · card back", front: "Head-on · epic+", below: "Belly · epic+" };
+let DATA = null, MINE = new Set();
+
+async function load() {
+  const [a, types] = await Promise.all([fetch("/api/art").then((r) => r.json()), fetch("/api/types").then((r) => r.json())]);
+  DATA = a;
+  for (const t of types) if (t.art_img) MINE.add(t.art_img.split("/")[2]);
+  draw();
+}
+
+function draw() {
+  const q = document.getElementById("q").value.trim().toLowerCase();
+  const kind = document.getElementById("kind").value;
+  const mine = document.getElementById("mine").checked;
+  const items = DATA.items.filter((i) =>
+    (!q || i.key.toLowerCase().includes(q) || i.name.toLowerCase().includes(q)) &&
+    (!kind || i.kind === kind) && (!mine || MINE.has(i.key)));
+  document.getElementById("count").textContent = `${items.length} of ${DATA.items.length} drawings`;
+  const list = document.getElementById("list");
+  list.innerHTML = items.slice(0, 60).map(row).join("");
+  if (items.length > 60) {
+    let shown = 60;
+    const more = () => {
+      if (window.innerHeight + window.scrollY < document.body.offsetHeight - 800 || shown >= items.length) return;
+      list.insertAdjacentHTML("beforeend", items.slice(shown, shown + 40).map(row).join(""));
+      shown += 40;
+    };
+    window.onscroll = more;
+  } else window.onscroll = null;
+}
+
+function row(i) {
+  const views = DATA.views.map((v) => `<figure><div class="pane"><img loading="lazy" src="/art/${i.key}/${v}.svg?v=${DATA.version}" alt=""></div><figcaption>${LABEL[v]}</figcaption></figure>`).join("");
+  return `<section class="row"><h2><code>${esc(i.key)}</code> ${esc(i.name)} ${i.generic ? `<span class="k">generic fallback</span>` : ""}${MINE.has(i.key) ? `<span class="k">· in your binder</span>` : ""}</h2><div class="views">${views}</div></section>`;
+}
+
+for (const id of ["q", "kind", "mine"]) document.getElementById(id).addEventListener("input", draw);
+load();
+</script>
+</body>
+</html>

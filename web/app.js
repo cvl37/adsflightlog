@@ -16,6 +16,10 @@ const ART = {
          "M10 10h20v4H10zM70 10h20v4H70zM10 86h20v4H10zM70 86h20v4H70z",
 };
 const svg = (k) => `<svg viewBox="0 0 100 100" aria-hidden="true"><path d="${ART[k] || ART.jet}"/></svg>`;
+// Vector drawing per type/variant when the server provides one ([web] art = "vector"),
+// else the classic silhouette above.
+const artHTML = (src, k, cls = "art-img") =>
+  src ? `<img class="${cls}" src="${src}" alt="" loading="lazy" decoding="async">` : svg(k);
 
 const TIER_ORDER = ["common", "uncommon", "rare", "epic", "legendary"];
 const GEMS = { common: "◆", uncommon: "◆◆", rare: "◆◆◆", epic: "◆◆◆◆", legendary: "★★★★★" };
@@ -51,7 +55,7 @@ function cardHTML(c) {
     <div class="card-inner">
       <div class="card-head"><span>#${String(c.card_no).padStart(3, "0")} · ${esc(c.series)}${c.edition ? ` · ED. ${c.edition}` : " SERIES"}</span><span class="pts">${c.points} PTS</span></div>
       ${c.retired ? `<div class="retired-stamp">Retired</div>` : ""}
-      <div class="art${brand ? " branded" : ""}">${chip}${svg(c.art)}${c.special ? `<span class="special-tag">★ ${esc(c.special.title)}</span>` : ""}<span class="tail">${esc(c.type || "????")}</span></div>
+      <div class="art${brand ? " branded" : ""}">${chip}${artHTML(c.art_img, c.art)}${c.special ? `<span class="special-tag">★ ${esc(c.special.title)}</span>` : ""}<span class="tail">${esc(c.type || "????")}</span></div>
       <div class="plate">
         <div class="reg">${esc(title)}</div>
         <div class="model">${esc(model)}</div>
@@ -124,7 +128,7 @@ async function renderDex() {
   const types = await api("/api/types");
   $("#dex-grid").innerHTML = types.map((t) => `
     <div class="dex-entry" style="--tier:var(--${t.rarity})">
-      ${svg(t.art)}
+      ${artHTML(t.art_img, t.art)}
       <div>
         <div class="code">${esc(t.type)} <span class="stars">${stars(t.count)}</span></div>
         <div class="nm" title="${esc(t.name)}">${esc(t.name || "Unknown type")}</div>
@@ -221,6 +225,7 @@ async function openCard(hex, ed) {
         ${c.airline && c.airline.logo ? `<div class="logo-plate">${logoImg(c.operator, "logo", "logo-full")}</div>` : ""}
         <h2>${esc(c.reg || c.hex.toUpperCase())}</h2>
         <div class="muted">${esc(c.model || c.type_name || "Unidentified airframe")}</div>
+        ${c.art_top ? `<figure class="plan"><img src="${c.art_top}" alt="Plan view of the ${esc(c.type_name || c.type || "aircraft")}"><figcaption>Plan view</figcaption></figure>` : ""}
         <dl class="facts">
           <dt>ICAO hex</dt><dd><code>${esc(c.hex)}</code></dd>
           <dt>Type</dt><dd>${esc(c.type || "—")}${c.desc ? ` (${esc(c.desc)}, wake ${esc(c.wtc || "?")})` : ""}</dd>
@@ -509,7 +514,7 @@ function sleeveHTML(r, view, pageKey) {
     : "";
   return `<div class="sleeve ${r.status}${r.hidden ? " hidden-sleeve" : ""}">
     ${hide}
-    <div class="s-art">${svg(artFor(r))}</div>
+    <div class="s-art">${artHTML(r.art_img, artFor(r))}</div>
     <div class="s-reg">${esc(r.reg || r.hex.toUpperCase())}</div>
     <div class="s-type">${esc(model)}</div>
     ${view === "manufacturer" && r.operator ? `<div class="s-meta">${esc(r.operator_name || r.operator)}</div>` : ""}
